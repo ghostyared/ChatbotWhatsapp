@@ -267,11 +267,26 @@ def brain_gethi(tel, txt, btn_id, nombre_wa, tipo='text', media=None, referral=N
             enviar_texto(tel, "🙏 ¡Muchas gracias por tu calificación! Nos ayuda a seguir mejorando nuestra atención.")
             return
 
-    # Modo híbrido: un humano atiende, el bot calla (pero si envía audio, lo transcribimos para el asesor)
+    # Modo híbrido: un humano atiende, el bot calla (salvo que el cliente escriba explícitamente
+    # un comando global de retorno como "inicio"/"menu"/"home" o pulse Menú Principal).
     if usu.bot_pausado:
-        if tipo == 'audio' and media and media.get('id') and Config.GEMINI_API_KEY:
-            _transcribir_y_guardar_audio(tel, nombre_wa, media)
-        return
+        global_kw = {normalizar_texto(k) for k in Config.GLOBAL_MENU_KEYWORDS}
+        palabras_pausa = _palabras(txt_norm)
+        pide_volver_bot = (
+            btn_id in IDS_INICIO
+            or (tipo == 'text' and bool(palabras_pausa) and (palabras_pausa <= global_kw))
+        )
+        if pide_volver_bot:
+            usu.bot_pausado = False
+            usu.estado_chat = 'bot'
+            usu.esperando_asesor_desde = None
+            usu.esperando_usuario_desde = None
+            usu.aviso_inactividad_enviado = False
+            db.session.commit()
+        else:
+            if tipo == 'audio' and media and media.get('id') and Config.GEMINI_API_KEY:
+                _transcribir_y_guardar_audio(tel, nombre_wa, media)
+            return
 
     # Interpretación automática de notas de voz (audio -> texto vía Gemini multimodal)
     if tipo == 'audio':
