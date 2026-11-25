@@ -1264,11 +1264,34 @@
                     <input type="text" id="linkInput" name="link" placeholder="https://forms.cloud.microsoft/...">
                 </div>
 
+                <div class="form-group">
+                    <label>Tipo de Menú en WhatsApp:</label>
+                    <select id="tipoNodoInput" name="tipo_nodo" onchange="onTipoNodoChange()" style="width:100%;padding:9px;background:#202c33;border:1px solid #2f3b44;border-radius:6px;color:#e9edef;">
+                        <option value="botones">Botones de respuesta rápida (máx. 3)</option>
+                        <option value="lista">Menú de Lista desplegable (máx. 10 opciones)</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="textoBotonListaGroup" style="display:none;">
+                    <label>Texto del botón de la Lista (máx. 20 caracteres):</label>
+                    <input type="text" id="textoBotonListaInput" name="texto_boton_lista" maxlength="20" placeholder="Ver opciones">
+                </div>
+
+                <div class="form-group">
+                    <label>Brochure PDF adjunto (URL HTTPS opcional):</label>
+                    <input type="text" id="documentoUrlInput" name="documento_url" placeholder="https://www.institucion.edu.pe/brochure.pdf">
+                </div>
+
+                <div class="form-group">
+                    <label>Nombre del archivo PDF (Opcional):</label>
+                    <input type="text" id="documentoNombreInput" name="documento_nombre" placeholder="Brochure_2026.pdf">
+                </div>
+
                 <!-- BUTTON BUILDER SECTION -->
                 <div class="btn-builder-box">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <span style="font-size: 13px; font-weight: 700; color: #00a884;"><i class="fa-solid fa-route"></i> Botones de Salida (Conectores)</span>
-                        <span style="font-size: 11px; color: #8696a0;">Máx 3</span>
+                        <span style="font-size: 13px; font-weight: 700; color: #00a884;"><i class="fa-solid fa-route"></i> Opciones de Salida (Conectores)</span>
+                        <span id="maxButtonsLabel" style="font-size: 11px; color: #8696a0;">Máx 3</span>
                     </div>
                     <div id="buttonRowsContainer"></div>
                     <button type="button" class="tool-btn-nav" style="width: 100%; justify-content: center; margin-top: 6px;" onclick="addButtonRow()">
@@ -3124,10 +3147,27 @@
             document.getElementById('displayCodeInput').value = item.clave;
             document.getElementById('textoInput').value = item.texto || '';
             document.getElementById('linkInput').value = item.link || '';
+            const tipoSel = document.getElementById('tipoNodoInput');
+            if (tipoSel) tipoSel.value = item.tipo_nodo || 'botones';
+            const txtLista = document.getElementById('textoBotonListaInput');
+            if (txtLista) txtLista.value = item.texto_boton_lista || 'Ver opciones';
+            const docUrl = document.getElementById('documentoUrlInput');
+            if (docUrl) docUrl.value = item.documento_url || '';
+            const docNom = document.getElementById('documentoNombreInput');
+            if (docNom) docNom.value = item.documento_nombre || '';
+            onTipoNodoChange();
 
             currentButtons = getNodeButtons(item);
             renderButtonBuilder();
             renderConnections();
+        }
+
+        function onTipoNodoChange() {
+            const tipo = (document.getElementById('tipoNodoInput') || {}).value || 'botones';
+            const grp = document.getElementById('textoBotonListaGroup');
+            const lbl = document.getElementById('maxButtonsLabel');
+            if (grp) grp.style.display = (tipo === 'lista') ? 'block' : 'none';
+            if (lbl) lbl.textContent = (tipo === 'lista') ? 'Máx 10 (Lista)' : 'Máx 3 (Botones)';
         }
 
         function updateCardPreview() {
@@ -3152,13 +3192,14 @@
                 respuestasData.forEach(r => {
                     optionsHtml += `<option value="${r.clave}" ${r.clave === btn.id ? 'selected' : ''}>➡️ ${getFriendlyTitle(r.clave)} [${r.clave}]</option>`;
                 });
-                optionsHtml += `<option value="inicio" ${btn.id === 'ir_inicio' || btn.id === 'inicio' ? 'selected' : ''}>🏠 Menú principal [inicio]</option>`;
+                optionsHtml += `<option value="CMD_MAIN_MENU" ${btn.id === 'CMD_MAIN_MENU' || btn.id === 'ir_inicio' || btn.id === 'inicio' ? 'selected' : ''}>🏠 Menú Principal [CMD_MAIN_MENU]</option>`;
+                optionsHtml += `<option value="acc_asesor" ${btn.id === 'acc_asesor' ? 'selected' : ''}>📞 Hablar con asesor / Cita [acc_asesor]</option>`;
                 optionsHtml += `<option value="m_gest" ${btn.id === 'm_gest' ? 'selected' : ''}>📚 Vacantes e informes [m_gest]</option>`;
                 optionsHtml += `<option value="m_segu" ${btn.id === 'm_segu' ? 'selected' : ''}>🎓 Servicios para alumnos [m_segu]</option>`;
                 optionsHtml += `<option value="m_bene" ${btn.id === 'm_bene' ? 'selected' : ''}>📍 Contacto [m_bene]</option>`;
 
                 row.innerHTML = `
-                    <input type="text" value="${btn.title}" placeholder="Etiqueta Botón" oninput="updateButtonData(${index}, 'title', this.value)" style="flex:1;">
+                    <input type="text" value="${btn.title}" placeholder="Etiqueta Opción" oninput="updateButtonData(${index}, 'title', this.value)" style="flex:1;">
                     <select onchange="updateButtonData(${index}, 'id', this.value)" style="flex:1.2;">
                         ${optionsHtml}
                     </select>
@@ -3169,16 +3210,20 @@
         }
 
         function addButtonRow() {
-            if (currentButtons.length >= 3) {
+            const tipo = (document.getElementById('tipoNodoInput') || {}).value || 'botones';
+            const maxOpts = (tipo === 'lista') ? 10 : 3;
+            if (currentButtons.length >= maxOpts) {
                 customAlert({
-                    title: 'Límite de botones',
-                    message: 'Máximo 3 botones permitidos por WhatsApp.',
+                    title: 'Límite de opciones',
+                    message: tipo === 'lista'
+                        ? 'Máximo 10 opciones permitidas por WhatsApp en una Lista.'
+                        : 'Máximo 3 botones permitidos por WhatsApp. Cambia el tipo de menú a «Lista» para usar hasta 10 opciones.',
                     icon: 'fa-triangle-exclamation',
                     iconColor: '#f59e0b'
                 });
                 return;
             }
-            currentButtons.push({ id: 'inicio', title: '🏠 Inicio' });
+            currentButtons.push({ id: 'CMD_MAIN_MENU', title: '🏠 Menú Principal' });
             renderButtonBuilder();
         }
 

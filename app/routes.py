@@ -331,22 +331,37 @@ def dashboard():
                                   func.max(Mensaje.fecha).label('ultima_fecha'))
                  .filter(Mensaje.nombre != Config.bot_sender())
                  .group_by(Mensaje.telefono).order_by(func.max(Mensaje.fecha).desc()).limit(10).all())
+    # Optimización N+1: consultas en bloque para los 10 contactos recientes
+    tels_rec = [c.telefono for c in contactos]
+    usuarios_map = {u.telefono: u for u in (Usuario.query.filter(Usuario.telefono.in_(tels_rec)).all() if tels_rec else [])}
+    dnis_rec = [u.dni for u in usuarios_map.values() if u.dni]
+    colabs_map = {col.dni: col.empresa for col in (Colaborador.query.filter(Colaborador.dni.in_(dnis_rec)).all() if dnis_rec else [])}
+    emp_ids = [u.empresa_id for u in usuarios_map.values() if u.empresa_id]
+    emps_map = {e.id: e.nombre_comercial for e in (Empresa.query.filter(Empresa.id.in_(emp_ids)).all() if emp_ids else [])}
+    sub_last = (db.session.query(Mensaje.telefono, func.max(Mensaje.id).label('max_id'))
+                .filter(Mensaje.telefono.in_(tels_rec)).group_by(Mensaje.telefono).subquery()) if tels_rec else None
+    last_msgs = (
+        {m.telefono: m.contenido for m in Mensaje.query.join(sub_last, Mensaje.id == sub_last.c.max_id).all()}
+        if sub_last is not None else {}
+    )
     ultimos_chats = []
     for c in contactos:
-        usu = Usuario.query.filter_by(telefono=c.telefono).first()
+        usu = usuarios_map.get(c.telefono)
         empresa = "General"
-        if usu and usu.dni:
-            colab = Colaborador.query.filter_by(dni=usu.dni).first()
-            if colab and colab.empresa:
-                empresa = colab.empresa
-        last_m = Mensaje.query.filter_by(telefono=c.telefono).order_by(Mensaje.fecha.desc()).first()
+        if usu and usu.empresa_id and usu.empresa_id in emps_map:
+            empresa = emps_map[usu.empresa_id]
+        elif usu and usu.dni and colabs_map.get(usu.dni):
+            empresa = colabs_map[usu.dni]
         ultimos_chats.append({
             "nombre": c.nombre or c.telefono,
             "telefono": c.telefono,
             "empresa": empresa,
-            "ultimo_msg": last_m.contenido if last_m else "Sin mensajes",
+            "ultimo_msg": last_msgs.get(c.telefono) or "Sin mensajes",
             "hora": to_local(c.ultima_fecha),
         })
+
+    kpis_evo = _calcular_kpis()
+    brechas_pendientes = PreguntaPendiente.query.filter_by(estado='pendiente').count()
 
     return render_template('dashboard.html',
                            total_colaboradores=total_colaboradores,
@@ -361,7 +376,9 @@ def dashboard():
                            total_salidas=total_salidas,
                            topicos_labels=topicos_labels,
                            topicos_data=topicos_data,
-                           ultimos_chats=ultimos_chats)
+                           ultimos_chats=ultimos_chats,
+                           kpis_evo=kpis_evo,
+                           brechas_pendientes=brechas_pendientes)
 
 
 # --- 4.1 MONITOR EN VIVO & CHATS ---

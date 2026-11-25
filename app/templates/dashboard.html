@@ -428,12 +428,16 @@
 
             <div class="kpi-card">
                 <div class="kpi-info">
-                    <h4>Estado del Sistema</h4>
-                    <div class="kpi-value" style="font-size: 20px; color: var(--accent-green); margin: 12px 0;">Operativo 24/7</div>
-                    <div class="kpi-sub"><i class="fa-solid fa-circle-check"></i> PostgreSQL & WhatsApp Cloud</div>
+                    <h4>Contención EVO</h4>
+                    <div class="kpi-value" style="color: var(--accent-green);">{{ kpis_evo.tasa_contencion_bot_pct }}%</div>
+                    <div class="kpi-sub">
+                        <i class="fa-solid fa-stopwatch"></i>
+                        FRT: {{ kpis_evo.frt_promedio_seg ~ 's' if kpis_evo.frt_promedio_seg is not none else '—' }} ·
+                        Brechas IA: <a href="/admin/ia" style="color:#f59e0b;text-decoration:none;font-weight:700;">{{ brechas_pendientes }}</a>
+                    </div>
                 </div>
                 <div class="kpi-icon icon-orange">
-                    <i class="fa-solid fa-server"></i>
+                    <i class="fa-solid fa-robot"></i>
                 </div>
             </div>
         </div>

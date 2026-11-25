@@ -37,7 +37,7 @@
 - [ ] Cifrar tokens de `api_endpoints` en la BD.
 - [ ] Redis para rate-limit compartido entre workers (`RATELIMIT_STORAGE_URI`).
 - [ ] `/logout` solo por POST.
-- [ ] Optimizar consultas N+1 del dashboard.
+- [x] Optimizar consultas N+1 del dashboard (y mostrar KPIs EVO en vivo).
 - [ ] Dividir `routes.py` en blueprints; unificar `consulta.py` y `alumno.py`.
 - [ ] Migraciones con Flask-Migrate/Alembic.
 - [ ] Activar CSP una vez probada en el navegador.
