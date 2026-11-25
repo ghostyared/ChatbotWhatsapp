@@ -81,7 +81,7 @@ def test_duplicado_de_meta_no_se_procesa_dos_veces(post_wa, sent):
 
 
 def test_tipo_no_soportado(post_wa, sent):
-    data = payload_texto("51900000004", "", "aud-1", tipo="audio")
+    data = payload_texto("51900000004", "", "stk-1", tipo="sticker")
     assert post_wa(data).status_code == 200
     assert "solo puedo leer" in sent[-1]["text"]["body"]
 
