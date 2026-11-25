@@ -224,7 +224,8 @@ def ejecutar(clave_o_endpoint, variables=None, timeout_override=None):
         except ValueError:
             pass
 
-    token = (ep.token or "").strip() or _token_env_para(url)
+    from .crypto import descifrar_token
+    token = descifrar_token(ep.token or "") or _token_env_para(url)
     auth_header = (ep.auth_header or "Authorization").strip()
     auth_scheme = (ep.auth_scheme or "").strip()
     if token and auth_header:

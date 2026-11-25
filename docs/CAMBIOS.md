@@ -34,8 +34,8 @@
 ### Pendientes para próximas fases
 - [ ] Segundo factor en Portal del Alumno (cuando exista fecha de nacimiento / teléfono vinculado).
 - [x] No reiniciar `intentos_acad` en cada DNI válido + tope de consultas por teléfono/día (`ACAD_MAX_CONSULTAS_DIA`).
-- [ ] Cifrar tokens de `api_endpoints` en la BD.
-- [ ] Redis para rate-limit compartido entre workers (`RATELIMIT_STORAGE_URI`).
+- [x] Cifrar tokens de `api_endpoints` en la BD (`app/crypto.py` con Fernet).
+- [x] Redis para rate-limit compartido entre workers (`RATELIMIT_STORAGE_URI` + servicio `redis` en `docker-compose.yml`).
 - [ ] `/logout` solo por POST.
 - [x] Optimizar consultas N+1 del dashboard (y mostrar KPIs EVO en vivo).
 - [ ] Dividir `routes.py` en blueprints; unificar `consulta.py` y `alumno.py`.

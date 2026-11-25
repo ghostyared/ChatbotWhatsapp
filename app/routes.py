@@ -751,6 +751,15 @@ def toggle_bot(tel):
     return jsonify({"status": "success", "bot_pausado": usu.bot_pausado})
 
 
+@main.route('/api/toggle_online', methods=['POST'])
+@limiter.exempt
+@agente_required
+def toggle_online():
+    g.user.en_linea = not bool(getattr(g.user, 'en_linea', True))
+    db.session.commit()
+    return jsonify({"status": "success", "en_linea": g.user.en_linea}), 200
+
+
 @main.route('/api/send_message/<tel>', methods=['POST'])
 @limiter.exempt
 @agente_required
@@ -1325,6 +1334,7 @@ def leads():
         query = query.filter(
             Lead.nombre.ilike(patron) | Lead.telefono.ilike(patron)
             | Lead.sede_nombre.ilike(patron) | Lead.resumen_ia.ilike(patron)
+            | Lead.tags.ilike(patron)
         )
     prio_ord = case((Lead.prioridad == 'alta', 0), (Lead.prioridad == 'media', 1), else_=2)
     pag = query.order_by(prio_ord.asc(), Lead.creado_en.desc()).paginate(page=page, per_page=15, error_out=False)
@@ -1338,13 +1348,23 @@ def leads():
     agentes = [u.username for u in UsuarioSistema.query.filter(
         UsuarioSistema.activo.is_(True), UsuarioSistema.rol.in_(('admin', 'callcenter'))
     ).order_by(UsuarioSistema.username.asc()).all()]
+    empresas_lista = Empresa.query.filter_by(activo=True).order_by(Empresa.orden.asc(), Empresa.id.asc()).all()
     tels = [l.telefono for l in pag.items]
+    lids = [l.id for l in pag.items]
     pausados = {u.telefono: True for u in Usuario.query.filter(Usuario.telefono.in_(tels), Usuario.bot_pausado.is_(True)).all()} if tels else {}
+    eventos_por_lead = {}
+    if lids:
+        evs = LeadEvento.query.filter(LeadEvento.lead_id.in_(lids)).order_by(LeadEvento.creado_en.desc()).all()
+        for ev in evs:
+            arr = eventos_por_lead.setdefault(ev.lead_id, [])
+            if len(arr) < 5:
+                arr.append(ev)
     return render_template(
         'leads.html', pag=pag, estado=estado, cola=cola, q=q, estados=Lead.ESTADOS,
-        prioridades=Lead.PRIORIDADES, resultados_llamada=Lead.RESULTADOS_LLAMADA,
+        prioridades=Lead.PRIORIDADES, scores=Lead.SCORES, resultados_llamada=Lead.RESULTADOS_LLAMADA,
         conteos=conteos, total=sum(conteos.values()), por_llamar=por_llamar,
-        sin_asignar=sin_asignar, mios=mios, agentes=agentes, bot_pausado=pausados,
+        sin_asignar=sin_asignar, mios=mios, agentes=agentes, empresas=empresas_lista,
+        bot_pausado=pausados, eventos_por_lead=eventos_por_lead,
     )
 
 
@@ -1365,23 +1385,34 @@ def lead_tomar(lid):
 @agente_required
 def lead_actualizar(lid):
     l = db.get_or_404(Lead, lid)
+    cambios = []
     nuevo = request.form.get('estado')
-    if nuevo in Lead.ESTADOS:
+    if nuevo in Lead.ESTADOS and nuevo != l.estado:
+        cambios.append(f"estado: {l.estado}→{nuevo}")
         l.estado = nuevo
     prio = request.form.get('prioridad')
     if prio in Lead.PRIORIDADES:
         l.prioridad = prio
     res_ll = request.form.get('resultado_llamada')
-    if res_ll in Lead.RESULTADOS_LLAMADA:
+    if res_ll in Lead.RESULTADOS_LLAMADA and res_ll != l.resultado_llamada:
+        cambios.append(f"llamada: {res_ll}")
         l.resultado_llamada = res_ll
     asig = request.form.get('asignado_a')
     if asig is not None:
-        l.asignado_a = asig.strip()[:60] or None
+        nuevo_asig = asig.strip()[:60] or None
+        if nuevo_asig != l.asignado_a:
+            cambios.append(f"asignado: {nuevo_asig or 'nadie'}")
+        l.asignado_a = nuevo_asig
     tel_alt = request.form.get('telefono_contacto')
     if tel_alt is not None:
         l.telefono_contacto = tel_alt.strip()[:30] or None
+    tags_raw = request.form.get('tags')
+    if tags_raw is not None:
+        l.tags = ','.join(t.strip() for t in tags_raw.split(',') if t.strip())[:255]
     l.notas_internas = (request.form.get('notas') or '').strip()[:500]
     l.atendido_por = g.user.username
+    if cambios:
+        db.session.add(LeadEvento(lead_id=l.id, tipo='estado', detalle=' · '.join(cambios)[:300], usuario=g.user.username))
     db.session.commit()
     flash(f'Interesado #{l.id} actualizado.', 'success')
     return redirect(_destino_leads(request.form.get('next', '')))
@@ -1920,7 +1951,8 @@ def admin_endpoints_guardar():
     if limpiar_token:
         ep.token = ''
     elif token_nuevo:
-        ep.token = token_nuevo
+        from .crypto import cifrar_token
+        ep.token = cifrar_token(token_nuevo)
     ep.headers_json = headers_json
     ep.body_template = body_template
     ep.timeout = timeout

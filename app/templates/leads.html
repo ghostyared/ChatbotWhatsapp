@@ -474,12 +474,41 @@
                 <button type="button" id="btnVistaToggle" onclick="toggleVistaLeads()" class="btn-chat" style="cursor:pointer;padding:7px 12px;font-size:12.5px;">
                     <i class="fa-solid fa-table-columns"></i> Vista Kanban
                 </button>
+                {% if session.get('user_role') == 'admin' %}
+                <button type="button" onclick="const b=document.getElementById('broadcastBox');b.style.display=b.style.display==='none'?'block':'none';" class="btn-take" style="cursor:pointer;padding:7px 12px;font-size:12.5px;">
+                    <i class="fa-solid fa-bullhorn"></i> Campaña Broadcast HSM
+                </button>
+                {% endif %}
                 <small style="color:var(--text-secondary);font-size:12px;">
                     <i class="fa-solid fa-phone-volume" style="color:#00a884;"></i>
                     Pulsa <strong>Llamar</strong>, <strong>Chat</strong> o <strong>HSM</strong> para contactar al lead.
                 </small>
             </div>
         </div>
+
+        {% if session.get('user_role') == 'admin' %}
+        <div id="broadcastBox" style="display:none;background:var(--card-bg);border:1px solid #a855f7;border-radius:10px;padding:16px;">
+            <h4 style="margin:0 0 8px;color:#c084fc;"><i class="fa-solid fa-bullhorn"></i> Campaña Saliente Broadcast HSM (Segmentada)</h4>
+            <p style="margin:0 0 10px;font-size:12.5px;color:var(--text-secondary);">Envía una plantilla HSM aprobada por Meta al segmento elegido (omite automáticamente contactos con <b>opt-out / BAJA</b>).</p>
+            <form method="POST" action="{{ url_for('main.leads_broadcast') }}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;" onsubmit="return confirm('¿Enviar campaña HSM al segmento seleccionado?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="text" name="template_name" required placeholder="Nombre plantilla HSM Meta..." style="padding:8px 10px;background:#202c33;border:1px solid #2f3b44;color:#e9edef;border-radius:6px;min-width:200px;">
+                <select name="empresa_id" style="padding:8px 10px;background:#202c33;border:1px solid #2f3b44;color:#e9edef;border-radius:6px;">
+                    <option value="">Todas las empresas</option>
+                    {% for emp in empresas %}<option value="{{ emp.id }}">{{ emp.nombre_comercial }}</option>{% endfor %}
+                </select>
+                <select name="estado" style="padding:8px 10px;background:#202c33;border:1px solid #2f3b44;color:#e9edef;border-radius:6px;">
+                    <option value="todos">Estado: Todos</option>
+                    {% for e in estados %}<option value="{{ e }}">{{ e|capitalize }}</option>{% endfor %}
+                </select>
+                <select name="score" style="padding:8px 10px;background:#202c33;border:1px solid #2f3b44;color:#e9edef;border-radius:6px;">
+                    <option value="todos">Score: Todos</option>
+                    {% for s in scores %}<option value="{{ s }}">{{ s|upper }}</option>{% endfor %}
+                </select>
+                <button type="submit" class="btn-ok" style="padding:8px 14px;"><i class="fa-solid fa-paper-plane"></i> Enviar Broadcast</button>
+            </form>
+        </div>
+        {% endif %}
 
         <div id="kanbanBoard" style="display:none;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">
             {% for est in estados %}
@@ -555,6 +584,22 @@
                         {% if l.quiere_asesor %}<span class="chip" style="background:rgba(239,68,68,.18);color:#f87171;">📞 Pide llamada/asesor</span>{% endif %}
                         {% if not l.asesor_avisado %}<span class="dup-flag" title="No se envió aviso automático (configura ASESOR_TELEFONO o webhook notificar_callcenter)">sin aviso</span>{% endif %}
                         <div style="font-size:12.5px;color:#d1d7db;margin-top:4px;line-height:1.4;">{{ l.resumen_ia or l.comentario or '—' }}</div>
+                        {% if l.tags %}
+                        <div style="margin-top:5px;">
+                            {% for tg in l.tags.split(',') if tg.strip() %}
+                            <span class="chip" style="background:rgba(168,85,247,.16);color:#c084fc;">🏷️ {{ tg.strip() }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        {% set evs = eventos_por_lead.get(l.id, []) %}
+                        {% if evs %}
+                        <details style="margin-top:6px;font-size:11.5px;color:#8696a0;">
+                            <summary style="cursor:pointer;color:#53bdeb;">🕒 Historial ({{ evs|length }})</summary>
+                            {% for ev in evs %}
+                            <div style="margin-top:3px;">• <b>{{ ev.usuario }}</b>: {{ ev.detalle }} <small>({{ ev.creado_en|localtime('%d/%m %H:%M') }})</small></div>
+                            {% endfor %}
+                        </details>
+                        {% endif %}
                     </td>
                     <td>
                         <span class="badge-estado estado-{{ l.estado }}">{{ l.estado|capitalize }}</span><br>
@@ -579,6 +624,7 @@
                                 </select>
                             </div>
                             <input type="text" name="telefono_contacto" maxlength="30" value="{{ l.telefono_contacto or '' }}" placeholder="Teléfono alternativo (opcional)">
+                            <input type="text" name="tags" maxlength="255" value="{{ l.tags or '' }}" placeholder="Etiquetas (ej. Beca, Turno Noche)">
                             <input type="text" name="notas" maxlength="500" value="{{ l.notas_internas or '' }}" placeholder="Nota de llamada / seguimiento">
                             <button class="btn-ok" type="submit">Guardar gestión</button>
                         </form>

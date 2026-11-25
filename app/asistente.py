@@ -439,6 +439,11 @@ def _t_registrar(tel, a, est):
         lead.estado = 'nuevo'
     if lead.visita_pref and lead.estado == 'nuevo':
         lead.estado = 'visita'
+    if lead.quiere_asesor and not lead.asignado_a:
+        from .flujos.asesor import asignar_asesor_round_robin
+        auto_asesor = asignar_asesor_round_robin(lead.empresa_id)
+        if auto_asesor:
+            lead.asignado_a = auto_asesor
     db.session.add(lead)
     db.session.commit()
     if a.get("visita_preferida"):

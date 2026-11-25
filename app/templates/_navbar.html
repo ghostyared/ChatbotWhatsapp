@@ -91,6 +91,13 @@
         {% endif %}
         <a href="/admin/usuarios" class="nav-tab {{ 'active' if _p.startswith('/admin/usuarios') else '' }}"><i class="fa-solid fa-user-shield"></i> Equipo &amp; Roles</a>
         {% endif %}
+        {% if _rol in ('admin', 'callcenter') %}
+        <button type="button" id="btnOnlineToggle" onclick="toggleOnlineStatus()"
+                style="background:#1a252c;color:#4ade80;border:1px solid #2f3b44;border-radius:14px;padding:4px 10px;font-size:11.5px;font-weight:700;cursor:pointer;"
+                title="Alternar tu disponibilidad para asignación automática Round-Robin">
+            🟢 En línea
+        </button>
+        {% endif %}
         <span style="color:#8696a0;font-size:12.5px;margin:0 4px;display:inline-flex;align-items:center;gap:5px;">
             <i class="fa-solid fa-circle-user" style="color:#00a884;font-size:15px;"></i>
             <strong style="color:#e9edef;">{{ session.get('username', 'Usuario') }}</strong>
@@ -98,3 +105,19 @@
         <a href="/logout" class="nav-tab logout"><i class="fa-solid fa-power-off"></i> Salir</a>
     </nav>
 </header>
+{% if _rol in ('admin', 'callcenter') %}
+<script>
+async function toggleOnlineStatus() {
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    const csrf = meta ? meta.content : '';
+    const r = await fetch('/api/toggle_online', { method: 'POST', headers: { 'X-CSRFToken': csrf } });
+    if (!r.ok) return;
+    const d = await r.json();
+    const btn = document.getElementById('btnOnlineToggle');
+    if (btn) {
+        btn.textContent = d.en_linea ? '🟢 En línea' : '🔴 Ausente';
+        btn.style.color = d.en_linea ? '#4ade80' : '#f87171';
+    }
+}
+</script>
+{% endif %}

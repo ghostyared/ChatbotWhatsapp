@@ -73,6 +73,9 @@ COLUMNAS_NUEVAS = [
     ("respuestas_bot", "texto_boton_lista", "VARCHAR(30) DEFAULT 'Ver opciones'"),
     ("respuestas_bot", "documento_url", "VARCHAR(500)"),
     ("respuestas_bot", "documento_nombre", "VARCHAR(120)"),
+    ("usuarios_sistema", "en_linea", "BOOLEAN NOT NULL DEFAULT TRUE"),
+    ("usuarios_sistema", "empresa_id", "INTEGER"),
+    ("usuarios_sistema", "max_chats", "INTEGER NOT NULL DEFAULT 10"),
 ]
 
 

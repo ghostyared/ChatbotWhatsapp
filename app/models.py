@@ -622,6 +622,9 @@ class UsuarioSistema(db.Model):
     nombre_completo = db.Column(db.String(100), nullable=True)
     rol = db.Column(db.String(20), nullable=False, default='lector')  # 'admin' o 'lector'
     activo = db.Column(db.Boolean, default=True, nullable=False)
+    en_linea = db.Column(db.Boolean, default=True, nullable=False)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresas.id'), nullable=True, index=True)
+    max_chats = db.Column(db.Integer, default=10, nullable=False)
     intentos_fallidos = db.Column(db.Integer, default=0, nullable=False)
     bloqueado_hasta = db.Column(db.DateTime, nullable=True)
     ultimo_login = db.Column(db.DateTime, nullable=True)

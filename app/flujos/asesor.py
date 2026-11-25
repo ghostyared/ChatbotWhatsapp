@@ -11,11 +11,40 @@ from zoneinfo import ZoneInfo
 
 from config import Config
 from .. import endpoints_client as ep_cli
-from ..models import Cita, Lead, db, utcnow
+from ..models import Cita, Lead, LeadEvento, UsuarioSistema, db, utcnow
 from ..services import enviar_botones, enviar_texto
 from . import estado
 
 logger = logging.getLogger(__name__)
+
+
+def asignar_asesor_round_robin(empresa_id=None):
+    """Elige al asesor (callcenter) activo y en línea con menos leads abiertos para la empresa dada."""
+    candidatos = UsuarioSistema.query.filter(
+        UsuarioSistema.activo.is_(True),
+        UsuarioSistema.en_linea.is_(True),
+        UsuarioSistema.rol == 'callcenter',
+    ).all()
+    if not candidatos:
+        return None
+    if empresa_id:
+        especificos = [u for u in candidatos if u.empresa_id == empresa_id]
+        generales = [u for u in candidatos if u.empresa_id is None]
+        pool = especificos or generales or candidatos
+    else:
+        pool = candidatos
+
+    mejor, menor_carga = None, None
+    for u in pool:
+        carga = Lead.query.filter(
+            Lead.asignado_a == u.username,
+            Lead.estado.in_(('nuevo', 'contactado', 'visita')),
+        ).count()
+        if carga >= (u.max_chats or 10):
+            continue
+        if menor_carga is None or carga < menor_carga:
+            mejor, menor_carga = u.username, carga
+    return mejor
 
 
 def en_horario_atencion(ahora_local=None):
@@ -152,10 +181,18 @@ def continuar(ctx, st):
         lead.prioridad = "alta"
         lead.score = "caliente"
         lead.empresa_id = lead.empresa_id or ctx.usu.empresa_id
+        if not lead.asignado_a:
+            auto_asesor = asignar_asesor_round_robin(lead.empresa_id)
+            if auto_asesor:
+                lead.asignado_a = auto_asesor
         lead.resultado_llamada = "cita_agendada" if franja else "pendiente"
         lead.estado = "visita" if franja else (lead.estado or "nuevo")
         db.session.add(lead)
         db.session.commit()
+        if lead.asignado_a:
+            ctx.usu.asignado_a = lead.asignado_a
+            db.session.add(LeadEvento(lead_id=lead.id, tipo='asignacion', detalle=f'Auto-asignado (Round-Robin) a {lead.asignado_a}', usuario='sistema'))
+            db.session.commit()
 
         if franja:
             cita = Cita(
