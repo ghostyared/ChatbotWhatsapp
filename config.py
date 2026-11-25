@@ -133,6 +133,7 @@ class Config:
     ACAD_NOTAS_REQUIERE_PAGOS_AL_DIA = _bool("ACAD_NOTAS_REQUIERE_PAGOS_AL_DIA", True)
     ACAD_MAX_ATTEMPTS = _int("ACAD_MAX_ATTEMPTS", 5)
     ACAD_LOCK_MINUTES = _int("ACAD_LOCK_MINUTES", 30)
+    ACAD_MAX_CONSULTAS_DIA = _int("ACAD_MAX_CONSULTAS_DIA", 25)  # tope diario de consultas académicas por teléfono
 
     # --- COMPROBANTES DE PAGO (archivos recibidos por WhatsApp) ---
     COMPROBANTES_DIR = _str("COMPROBANTES_DIR", "/app/data/comprobantes")

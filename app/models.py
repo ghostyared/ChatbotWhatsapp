@@ -174,6 +174,26 @@ class Lead(db.Model):
     RESULTADOS_LLAMADA = ('pendiente', 'contactado', 'no_contesta', 'volver_llamar', 'cita_agendada', 'matriculado', 'descartado')
 
 
+class Cita(db.Model):
+    """Agenda de citas y llamadas programadas (fuera de horario, SLA vencido o visita guiada)."""
+    __tablename__ = 'citas'
+    id = db.Column(db.Integer, primary_key=True)
+    lead_id = db.Column(db.Integer, db.ForeignKey('leads.id'), nullable=True, index=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresas.id'), nullable=True, index=True)
+    telefono = db.Column(db.String(20), nullable=False, index=True)
+    nombre = db.Column(db.String(120), default='')
+    fecha_preferida = db.Column(db.String(60), default='')
+    franja = db.Column(db.String(80), default='')
+    motivo = db.Column(db.Text, default='')
+    asignado_a = db.Column(db.String(60), nullable=True, index=True)
+    estado = db.Column(db.String(20), default='pendiente', nullable=False, index=True)
+    recordatorio_enviado = db.Column(db.Boolean, default=False, nullable=False)
+    creado_en = db.Column(db.DateTime, default=utcnow, index=True)
+    actualizado_en = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
+
+    ESTADOS = ('pendiente', 'confirmada', 'realizada', 'cancelada', 'no_contesta')
+
+
 class ReglaCampana(db.Model):
     """Reglas de atribución Zero-Friction para campañas Click-to-WhatsApp (Facebook / Instagram Ads)."""
     __tablename__ = 'reglas_campana'

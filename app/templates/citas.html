@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ brand.bot_name }} | Agenda de Citas</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root { --bg-dark:#0b141a; --card-bg:#111b21; --header-bg:#202c33; --input-bg:#2a3942; --accent:#00a884; --text:#e9edef; --muted:#8696a0; --border:#2f3b44; }
+        body { background:var(--bg-dark); color:var(--text); font-family:'Segoe UI',sans-serif; margin:0; }
+        .top-navbar { background:var(--header-bg); height:60px; display:flex; align-items:center; justify-content:space-between; padding:0 30px; border-bottom:1px solid var(--border); position:sticky; top:0; z-index:100; }
+        .brand-logo { display:flex; align-items:center; gap:10px; font-size:19px; font-weight:700; color:var(--accent); }
+        .nav-tabs { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+        .nav-tab { color:var(--muted); text-decoration:none; padding:8px 14px; border-radius:6px; font-size:13.5px; font-weight:600; display:flex; align-items:center; gap:6px; }
+        .nav-tab:hover { background:#222e35; color:var(--text); }
+        .nav-tab.active { background:#005c4b; color:#fff; }
+        .nav-tab.logout { color:#ef4444; }
+        .wrap { max-width:1300px; width:92%; margin:26px auto; display:flex; flex-direction:column; gap:18px; }
+        .alert { padding:12px 16px; border-radius:8px; font-size:13.5px; background:rgba(0,168,132,.15); border:1px solid var(--accent); color:#00a884; }
+        .tabs { display:flex; gap:8px; flex-wrap:wrap; }
+        .tab { padding:7px 14px; border-radius:18px; border:1px solid var(--border); color:var(--muted); text-decoration:none; font-size:13px; font-weight:600; }
+        .tab.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+        .card { background:var(--card-bg); border:1px solid var(--border); border-radius:10px; padding:18px; overflow-x:auto; }
+        table { width:100%; border-collapse:collapse; }
+        th, td { padding:12px 14px; text-align:left; border-bottom:1px solid var(--border); font-size:13.5px; }
+        th { color:var(--muted); font-size:11.5px; text-transform:uppercase; background:#0f181e; }
+        select, input[type=text] { background:var(--input-bg); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:6px 8px; font-size:12.5px; }
+        .btn { padding:6px 11px; border-radius:6px; border:none; cursor:pointer; font-size:12px; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:5px; }
+        .btn-green { background:var(--accent); color:#fff; }
+        .btn-blue { background:rgba(83,189,235,.18); color:#53bdeb; border:1px solid rgba(83,189,235,.4); }
+        .btn-amber { background:rgba(245,158,11,.18); color:#fbbf24; border:1px solid rgba(245,158,11,.4); }
+        .badge { padding:3px 8px; border-radius:5px; font-size:11px; font-weight:700; }
+        .b-pendiente { background:rgba(245,158,11,.18); color:#fbbf24; }
+        .b-confirmada { background:rgba(83,189,235,.18); color:#53bdeb; }
+        .b-realizada { background:rgba(34,197,94,.18); color:#22c55e; }
+        .b-cancelada, .b-no_contesta { background:rgba(239,68,68,.18); color:#ef4444; }
+    </style>
+</head>
+<body>
+    <header class="top-navbar">
+        <div class="brand-logo"><i class="fa-solid fa-calendar-check"></i><span>{{ brand.bot_name }} · Agenda de Citas</span></div>
+        <nav class="nav-tabs">
+            {% if session.get('user_role') == 'admin' %}<a href="/dashboard" class="nav-tab"><i class="fa-solid fa-chart-line"></i> Dashboard</a>{% endif %}
+            <a href="/monitor" class="nav-tab"><i class="fa-solid fa-comments"></i> Monitor</a>
+            <a href="/admin/leads" class="nav-tab"><i class="fa-solid fa-headset"></i> Leads</a>
+            <a href="/admin/citas" class="nav-tab active"><i class="fa-solid fa-calendar-check"></i> Citas</a>
+            {% if session.get('user_role') == 'admin' %}<a href="/admin/ia" class="nav-tab"><i class="fa-solid fa-wand-magic-sparkles"></i> IA</a>{% endif %}
+            <a href="/logout" class="nav-tab logout"><i class="fa-solid fa-power-off"></i> Salir</a>
+        </nav>
+    </header>
+    <div class="wrap">
+        {% for cat, msg in get_flashed_messages(with_categories=true) %}
+        <div class="alert"><i class="fa-solid fa-circle-info"></i> {{ msg }}</div>
+        {% endfor %}
+
+        <div class="tabs">
+            <a class="tab {{ 'active' if estado == 'todos' else '' }}" href="{{ url_for('main.admin_citas', estado='todos') }}">Todas ({{ total }})</a>
+            {% for e in estados %}
+            <a class="tab {{ 'active' if estado == e else '' }}" href="{{ url_for('main.admin_citas', estado=e) }}">{{ e|replace('_',' ')|capitalize }} ({{ conteos.get(e, 0) }})</a>
+            {% endfor %}
+        </div>
+
+        <div class="card">
+            <table>
+                <thead>
+                    <tr><th># / Fecha</th><th>Contacto</th><th>Empresa / Franja</th><th>Motivo</th><th>Estado</th><th>Acciones</th></tr>
+                </thead>
+                <tbody>
+                {% for c in citas %}
+                <tr>
+                    <td><strong>#{{ c.id }}</strong><br><small style="color:var(--muted);">{{ c.creado_en|localtime }}</small></td>
+                    <td>
+                        <strong>{{ c.nombre or 'Sin nombre' }}</strong><br>
+                        <small style="color:var(--muted);">+{{ c.telefono }}</small>
+                        <div style="display:flex;gap:5px;margin-top:5px;">
+                            <a href="{{ url_for('main.monitor', tel=c.telefono) }}" class="btn btn-blue"><i class="fa-solid fa-comments"></i> Chat</a>
+                            <a href="tel:+{{ c.telefono|replace('+','')|replace(' ','') }}" class="btn btn-green"><i class="fa-solid fa-phone"></i> Llamar</a>
+                        </div>
+                    </td>
+                    <td>
+                        <strong>{{ empresas_map.get(c.empresa_id, 'General') }}</strong><br>
+                        <span style="color:#00a884;font-weight:700;">🕒 {{ c.franja or c.fecha_preferida or 'Por coordinar' }}</span>
+                    </td>
+                    <td style="max-width:260px;">{{ c.motivo or '—' }}</td>
+                    <td>
+                        <span class="badge b-{{ c.estado }}">{{ c.estado|replace('_',' ')|upper }}</span><br>
+                        <small style="color:var(--muted);">👤 {{ c.asignado_a or 'Sin asignar' }}</small>
+                        {% if c.recordatorio_enviado %}<br><small style="color:#00a884;">✔ Recordado</small>{% endif %}
+                    </td>
+                    <td>
+                        <form method="POST" action="{{ url_for('main.cita_actualizar', cid=c.id) }}" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="filtro_estado" value="{{ estado }}">
+                            <select name="estado">{% for e in estados %}<option value="{{ e }}" {{ 'selected' if c.estado == e else '' }}>{{ e|replace('_',' ')|capitalize }}</option>{% endfor %}</select>
+                            <select name="asignado_a"><option value="">Sin asignar</option>{% for a in agentes %}<option value="{{ a }}" {{ 'selected' if c.asignado_a == a else '' }}>{{ a }}</option>{% endfor %}</select>
+                            <button type="submit" class="btn btn-green">Guardar</button>
+                        </form>
+                        <form method="POST" action="{{ url_for('main.cita_recordar', cid=c.id) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="filtro_estado" value="{{ estado }}">
+                            <button type="submit" class="btn btn-amber"><i class="fa-brands fa-whatsapp"></i> Enviar recordatorio</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:26px;">No hay citas registradas en este estado.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

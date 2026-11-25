@@ -182,10 +182,27 @@ def continuar(ctx, st):
     return False
 
 
+def _supero_tope_diario(tel):
+    """Evita enumeración masiva de DNIs limitando las consultas académicas por teléfono/día."""
+    if Config.ACAD_MAX_CONSULTAS_DIA <= 0:
+        return False
+    inicio_dia = utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    hoy = AuditoriaConsulta.query.filter(
+        AuditoriaConsulta.telefono == tel,
+        AuditoriaConsulta.fecha >= inicio_dia,
+    ).count()
+    return hoy >= Config.ACAD_MAX_CONSULTAS_DIA
+
+
 def _paso_dni(ctx, st):
     if _bloqueado(ctx.usu):
         estado.terminar(ctx.tel)
         enviar_texto(ctx.tel, "🔒 Superaste el máximo de intentos. Vuelve a intentarlo más tarde o contacta a un asesor.")
+        return True
+
+    if _supero_tope_diario(ctx.tel):
+        estado.terminar(ctx.tel)
+        enviar_texto(ctx.tel, "🔒 Alcanzaste el límite diario de consultas académicas. Si necesitas ayuda adicional, solicita un asesor.")
         return True
 
     dni = (ctx.txt or "").strip() if ctx.tipo == "text" else ""
@@ -214,8 +231,8 @@ def _paso_dni(ctx, st):
         estado.terminar(ctx.tel)
         return True
 
-    ctx.usu.intentos_acad = 0
-    db.session.commit()
+    # No reiniciamos intentos_acad en cada DNI válido (evita evadir el bloqueo alternando 1 DNI válido)
+    _auditar(ctx, "alumno", dni, "", "", "ok")
 
     nombre = (
         est.get("NombreCompleto")

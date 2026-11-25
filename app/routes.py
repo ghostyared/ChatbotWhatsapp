@@ -17,7 +17,7 @@ from werkzeug.security import check_password_hash
 from config import Config
 from . import csrf, endpoints_client as ep_cli, limiter
 from .bot_logic import brain_gethi
-from .models import (Ajuste, ApiEndpoint, Colaborador, Comprobante, Empresa, IaUso, Lead, Mensaje,
+from .models import (Ajuste, ApiEndpoint, Cita, Colaborador, Comprobante, Empresa, IaUso, Lead, Mensaje,
                      PlantillaRapida, PreguntaPendiente, ReglaCampana, RespuestaBot, Usuario, UsuarioSistema, db, utcnow)
 from .services import enviar_plantilla, enviar_texto, registrar_msg
 from .timeutil import to_local
@@ -1252,6 +1252,8 @@ def ia_panel():
     empresas = Empresa.query.order_by(Empresa.orden.asc(), Empresa.id.asc()).all()
     empresas_map = {e.id: e.nombre_comercial for e in empresas}
     campanas = ReglaCampana.query.order_by(ReglaCampana.id.desc()).all()
+    PlantillaRapida.seed()
+    plantillas = PlantillaRapida.query.order_by(PlantillaRapida.id.asc()).all()
     preguntas_pendientes = (
         PreguntaPendiente.query.filter_by(estado='pendiente')
         .order_by(PreguntaPendiente.veces.desc(), PreguntaPendiente.creado_en.desc())
@@ -1263,11 +1265,136 @@ def ia_panel():
                            gemini_modelo=Config.GEMINI_MODEL, openrouter_modelos=', '.join(Config.OPENROUTER_MODELS),
                            hoy=hoy, tope=Config.IA_MAX_LLAMADAS_DIA, catalogo=catalogo, aviso=Config.IA_AVISO,
                            ultimo_error=ia_router.ULTIMO_ERROR,
-                           empresas=empresas, empresas_map=empresas_map, campanas=campanas,
+                           empresas=empresas, empresas_map=empresas_map, campanas=campanas, plantillas=plantillas,
                            preguntas_pendientes=preguntas_pendientes,
                            saludo_preview=saludo_preview,
                            conocimiento=aj.valor if aj else '',
                            actualizado=(f"{to_local(aj.actualizado_en)} por {aj.actualizado_por}" if aj and aj.actualizado_en else ''))
+
+
+@main.route('/admin/ia/plantillas/guardar', methods=['POST'])
+@admin_required
+def ia_plantilla_guardar():
+    pid = (request.form.get('id') or '').strip()
+    atajo = (request.form.get('atajo') or '').strip().lower()
+    if atajo and not atajo.startswith('/'):
+        atajo = '/' + atajo
+    atajo = re.sub(r'[^a-z0-9_/-]+', '', atajo)[:40]
+    titulo = (request.form.get('titulo') or '').strip()[:100]
+    contenido = (request.form.get('contenido') or '').strip()[:2000]
+    if not atajo or len(atajo) < 2 or not contenido:
+        flash('Indica el atajo (ej. /brochure) y el texto del mensaje.', 'danger')
+        return redirect(url_for('main.ia_panel'))
+
+    p = db.session.get(PlantillaRapida, int(pid)) if pid.isdigit() else PlantillaRapida.query.filter_by(atajo=atajo).first()
+    if not p:
+        p = PlantillaRapida(atajo=atajo)
+        db.session.add(p)
+    p.atajo = atajo
+    p.titulo = titulo or atajo
+    p.contenido = contenido
+    p.activo = True
+    db.session.commit()
+    flash(f'Plantilla rápida «{p.atajo}» guardada.', 'success')
+    return redirect(url_for('main.ia_panel'))
+
+
+@main.route('/admin/ia/plantillas/<int:pid>/eliminar', methods=['POST'])
+@admin_required
+def ia_plantilla_eliminar(pid):
+    p = db.session.get(PlantillaRapida, pid)
+    if p:
+        db.session.delete(p)
+        db.session.commit()
+        flash(f'Plantilla «{p.atajo}» eliminada.', 'info')
+    return redirect(url_for('main.ia_panel'))
+
+
+@main.route('/admin/citas')
+@agente_required
+def admin_citas():
+    estado = request.args.get('estado', 'pendiente')
+    query = Cita.query
+    if estado in Cita.ESTADOS:
+        query = query.filter_by(estado=estado)
+    citas = query.order_by(Cita.creado_en.desc()).limit(100).all()
+    conteos = dict(db.session.query(Cita.estado, func.count(Cita.id)).group_by(Cita.estado).all())
+    empresas_map = {e.id: e.nombre_comercial for e in Empresa.query.all()}
+    agentes = [u.username for u in UsuarioSistema.query.filter(
+        UsuarioSistema.activo.is_(True), UsuarioSistema.rol.in_(('admin', 'callcenter'))
+    ).order_by(UsuarioSistema.username.asc()).all()]
+    return render_template('citas.html', citas=citas, estado=estado, estados=Cita.ESTADOS,
+                           conteos=conteos, total=sum(conteos.values()),
+                           empresas_map=empresas_map, agentes=agentes)
+
+
+@main.route('/admin/citas/<int:cid>/actualizar', methods=['POST'])
+@agente_required
+def cita_actualizar(cid):
+    c = db.get_or_404(Cita, cid)
+    est = request.form.get('estado')
+    if est in Cita.ESTADOS:
+        c.estado = est
+    asig = request.form.get('asignado_a')
+    if asig is not None:
+        c.asignado_a = asig.strip()[:60] or None
+    franja = (request.form.get('franja') or '').strip()
+    if franja:
+        c.franja = franja[:80]
+    db.session.commit()
+    flash(f'Cita #{c.id} actualizada ({c.estado}).', 'success')
+    return redirect(url_for('main.admin_citas', estado=request.form.get('filtro_estado', 'pendiente')))
+
+
+@main.route('/admin/citas/<int:cid>/recordar', methods=['POST'])
+@agente_required
+def cita_recordar(cid):
+    c = db.get_or_404(Cita, cid)
+    texto = (
+        f"📅 ¡Hola *{c.nombre or 'estimado(a)'}*! Te recordamos tu llamada/cita programada "
+        f"(*{c.franja or c.fecha_preferida or 'pronto'}*).\n\n"
+        f"Nuestro equipo se comunicará contigo según lo coordinado. ¡Gracias!"
+    )
+    resp = enviar_texto(c.telefono, texto)
+    if resp is not None and resp.status_code == 200:
+        c.recordatorio_enviado = True
+        if c.estado == 'pendiente':
+            c.estado = 'confirmada'
+        db.session.commit()
+        flash(f'Recordatorio enviado por WhatsApp para la cita #{c.id}.', 'success')
+    else:
+        flash('No se pudo enviar el recordatorio por WhatsApp (¿fuera de ventana 24h?).', 'warning')
+    return redirect(url_for('main.admin_citas', estado=request.form.get('filtro_estado', 'pendiente')))
+
+
+@main.route('/api/v1/crm/citas', methods=['POST'])
+@limiter.exempt
+@agente_required
+def api_crm_citas():
+    data = request.get_json(silent=True) or {}
+    tel = str(data.get('telefono') or '').strip()[:20]
+    lead_id = data.get('lead_id')
+    if not tel and lead_id:
+        lead = db.session.get(Lead, int(lead_id))
+        if lead:
+            tel = lead.telefono
+    if not tel:
+        return jsonify({"ok": False, "error": "Falta telefono o lead_id válido"}), 400
+    emp_id = data.get('empresa_id')
+    c = Cita(
+        lead_id=int(lead_id) if str(lead_id or '').isdigit() else None,
+        empresa_id=int(emp_id) if str(emp_id or '').isdigit() else None,
+        telefono=tel,
+        nombre=str(data.get('nombre') or '')[:120],
+        fecha_preferida=str(data.get('fecha_preferida') or '')[:60],
+        franja=str(data.get('franja') or '')[:80],
+        motivo=str(data.get('motivo') or '')[:500],
+        asignado_a=str(data.get('asignado_a') or g.user.username)[:60],
+        estado='pendiente',
+    )
+    db.session.add(c)
+    db.session.commit()
+    return jsonify({"ok": True, "id": c.id, "estado": c.estado}), 201
 
 
 @main.route('/admin/ia/campanas/guardar', methods=['POST'])

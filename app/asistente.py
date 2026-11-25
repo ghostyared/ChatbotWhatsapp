@@ -17,7 +17,7 @@ from sqlalchemy import func
 
 from config import Config
 from . import catalogo_api, ia, ia_gemini
-from .models import Ajuste, Empresa, PreguntaPendiente, db, IaUso, Lead, Mensaje, Usuario, utcnow
+from .models import Ajuste, Cita, Empresa, PreguntaPendiente, db, IaUso, Lead, Mensaje, Usuario, utcnow
 from .services import enviar_botones, enviar_lista, enviar_texto
 
 logger = logging.getLogger(__name__)
@@ -392,6 +392,22 @@ def _avisar_asesor(lead, sede):
     return avisado
 
 
+def generar_handoff_brief(tel, empresa=None):
+    """Genera un resumen ejecutivo breve (máx. 3 líneas) de los últimos mensajes del usuario para el asesor."""
+    msgs = (
+        Mensaje.query.filter_by(telefono=tel, direccion='ENTRADA')
+        .order_by(Mensaje.id.desc()).limit(4).all()
+    )[::-1]
+    lineas = [
+        _LARGOS.sub("[dato oculto]", (m.contenido or "").strip())[:140]
+        for m in msgs if (m.contenido or "").strip() and not m.contenido.startswith(("Botón:", "Lista:"))
+    ]
+    if not lineas:
+        return ""
+    emp_txt = f"[{empresa.nombre_comercial}] " if empresa else ""
+    return (emp_txt + " | ".join(lineas))[:500]
+
+
 def _t_registrar(tel, a, est):
     sede = None
     if _catalogo_activo():
@@ -399,27 +415,45 @@ def _t_registrar(tel, a, est):
             sede = next((s for s in catalogo_api.listar_sedes() if s["id"] == str(a.get("sede_id"))), None)
         except catalogo_api.CatalogoError:
             pass
+    emp_id = est.get("empresa_id")
+    emp = db.session.get(Empresa, emp_id) if emp_id else None
     lead = Lead.query.filter_by(telefono=tel).filter(Lead.estado.in_(('nuevo', 'contactado', 'visita'))).first() or Lead(telefono=tel)
     lead.nombre = (a.get("nombre") or "")[:120]
+    lead.empresa_id = emp.id if emp else lead.empresa_id
     lead.sede_id = str(a.get("sede_id") or "")[:60]
-    lead.sede_nombre = (sede or {}).get("nombre") or str(a.get("sede_id") or "")[:120]
+    lead.sede_nombre = (sede or {}).get("nombre") or (emp.nombre_comercial if emp else str(a.get("sede_id") or ""))[:120]
     lead.nivel = (a.get("nivel") or lead.nivel or "")[:80]
     lead.edad_hijo = (a.get("edad_hijo") or lead.edad_hijo or "")[:40]
     if a.get("telefono_contacto"):
         lead.telefono_contacto = str(a.get("telefono_contacto"))[:30]
     comentario = (a.get("comentario") or lead.comentario or "")[:1000]
+    brief = generar_handoff_brief(tel, empresa=emp)
     lead.comentario = comentario
-    lead.resumen_ia = comentario
+    lead.resumen_ia = comentario if len(comentario) >= 25 else (brief or comentario)
     lead.visita_pref = (a.get("visita_preferida") or lead.visita_pref or "")[:120]
     lead.quiere_asesor = bool(a.get("quiere_asesor")) or bool(lead.quiere_asesor)
     lead.prioridad = 'alta' if (lead.quiere_asesor or lead.visita_pref) else (lead.prioridad or 'media')
-    lead.resultado_llamada = lead.resultado_llamada or 'pendiente'
+    lead.score = 'caliente' if (lead.quiere_asesor or lead.visita_pref) else ('tibio' if (lead.score or 'frio') == 'frio' else lead.score)
+    lead.resultado_llamada = 'cita_agendada' if lead.visita_pref else (lead.resultado_llamada or 'pendiente')
     if not lead.estado:
         lead.estado = 'nuevo'
     if lead.visita_pref and lead.estado == 'nuevo':
         lead.estado = 'visita'
     db.session.add(lead)
     db.session.commit()
+    if a.get("visita_preferida"):
+        db.session.add(Cita(
+            lead_id=lead.id,
+            empresa_id=lead.empresa_id,
+            telefono=tel,
+            nombre=lead.nombre or "",
+            fecha_preferida=str(a.get("visita_preferida"))[:60],
+            franja=str(a.get("visita_preferida"))[:80],
+            motivo=(lead.resumen_ia or "")[:500],
+            asignado_a=lead.asignado_a,
+            estado="pendiente",
+        ))
+        db.session.commit()
     lead.asesor_avisado = _avisar_asesor(lead, sede)
     if lead.quiere_asesor:
         est["pausar"] = True          # se pausa DESPUÉS de responder, para no callar al bot a mitad de mensaje

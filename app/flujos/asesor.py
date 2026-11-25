@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 
 from config import Config
 from .. import endpoints_client as ep_cli
-from ..models import Lead, db, utcnow
+from ..models import Cita, Lead, db, utcnow
 from ..services import enviar_botones, enviar_texto
 from . import estado
 
@@ -150,10 +150,35 @@ def continuar(ctx, st):
         )
         lead.quiere_asesor = True
         lead.prioridad = "alta"
+        lead.score = "caliente"
+        lead.empresa_id = lead.empresa_id or ctx.usu.empresa_id
         lead.resultado_llamada = "cita_agendada" if franja else "pendiente"
         lead.estado = "visita" if franja else (lead.estado or "nuevo")
         db.session.add(lead)
         db.session.commit()
+
+        if franja:
+            cita = Cita(
+                lead_id=lead.id,
+                empresa_id=lead.empresa_id,
+                telefono=ctx.tel,
+                nombre=lead.nombre or ctx.nombre or "",
+                fecha_preferida="Próximo día hábil",
+                franja=franja[:80],
+                motivo=detalle[:500],
+                asignado_a=lead.asignado_a,
+                estado="pendiente",
+            )
+            db.session.add(cita)
+            db.session.commit()
+            ep_cita = ep_cli.obtener_endpoint("agendar_cita", solo_activo=True)
+            if ep_cita:
+                ep_cli.ejecutar(ep_cita, {
+                    "lead_id": lead.id,
+                    "empresa_id": lead.empresa_id or 0,
+                    "franja": franja,
+                    "motivo": detalle[:300],
+                })
 
         lead.asesor_avisado = notificar_callcenter(lead)
         if not fuera_horario:
