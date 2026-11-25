@@ -72,6 +72,8 @@ class Usuario(db.Model):
     esperando_asesor_desde = db.Column(db.DateTime, nullable=True)
     esperando_usuario_desde = db.Column(db.DateTime, nullable=True)
     aviso_inactividad_enviado = db.Column(db.Boolean, default=False, nullable=False)
+    opt_out = db.Column(db.Boolean, default=False, nullable=False)            # True si pidió BAJA/STOP de campañas HSM
+    ultimo_msg_entrada = db.Column(db.DateTime, nullable=True)                # para calcular ventana gratuita de 24h Meta
 
 
 class Mensaje(db.Model):
@@ -82,8 +84,12 @@ class Mensaje(db.Model):
     contenido = db.Column(db.Text)
     direccion = db.Column(db.String(10))  # ENTRADA / SALIDA / INTERNO
     es_interno = db.Column(db.Boolean, default=False, nullable=False)  # Modo Susurro (solo panel web)
+    estado_envio = db.Column(db.String(20), nullable=True)             # sent | delivered | read | failed
+    error_meta = db.Column(db.String(300), nullable=True)
+    media_tipo = db.Column(db.String(20), nullable=True)               # image | video | document | audio
+    media_url = db.Column(db.String(500), nullable=True)
     fecha = db.Column(db.DateTime, default=utcnow, index=True)
-    wa_id = db.Column(db.String(128), unique=True, nullable=True)  # id de Meta: evita duplicados por reintentos
+    wa_id = db.Column(db.String(128), unique=True, nullable=True)  # id de Meta: evita duplicados y recibe checks de lectura
 
 
 class Conversacion(db.Model):
@@ -163,6 +169,8 @@ class Lead(db.Model):
     campana_nombre = db.Column(db.String(150), nullable=True)
     ctwa_clid = db.Column(db.String(200), nullable=True)
     score = db.Column(db.String(15), default='frio', index=True)          # frio|tibio|caliente
+    tags = db.Column(db.String(255), default='')                          # etiquetas separadas por coma (ej. Beca,Turno Noche)
+    csat = db.Column(db.Integer, nullable=True)                           # satisfacción 1-5 estrellas
     primera_respuesta_en = db.Column(db.DateTime, nullable=True)
     resuelto_en = db.Column(db.DateTime, nullable=True)
     creado_en = db.Column(db.DateTime, default=utcnow, index=True)
@@ -172,6 +180,31 @@ class Lead(db.Model):
     PRIORIDADES = ('alta', 'media', 'baja')
     SCORES = ('frio', 'tibio', 'caliente')
     RESULTADOS_LLAMADA = ('pendiente', 'contactado', 'no_contesta', 'volver_llamar', 'cita_agendada', 'matriculado', 'descartado')
+
+
+class MaterialComercial(db.Model):
+    """Biblioteca de flyers (imágenes), videos y brochures PDF por empresa para envío en 1 clic desde /monitor."""
+    __tablename__ = 'materiales_comerciales'
+    id = db.Column(db.Integer, primary_key=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresas.id'), nullable=True, index=True)
+    titulo = db.Column(db.String(150), nullable=False)
+    tipo = db.Column(db.String(20), nullable=False, default='image')      # image | video | document
+    url = db.Column(db.String(500), nullable=False)
+    filename = db.Column(db.String(120), default='')
+    caption = db.Column(db.String(500), default='')
+    activo = db.Column(db.Boolean, default=True, nullable=False)
+    creado_en = db.Column(db.DateTime, default=utcnow)
+
+
+class LeadEvento(db.Model):
+    """Timeline de auditoría comercial de un Lead (cambios de estado, asignaciones, HSM, citas)."""
+    __tablename__ = 'lead_eventos'
+    id = db.Column(db.Integer, primary_key=True)
+    lead_id = db.Column(db.Integer, db.ForeignKey('leads.id'), nullable=False, index=True)
+    tipo = db.Column(db.String(30), nullable=False)                       # estado | asignacion | hsm | cita | material | csat
+    detalle = db.Column(db.String(300), default='')
+    usuario = db.Column(db.String(60), default='sistema')
+    creado_en = db.Column(db.DateTime, default=utcnow, index=True)
 
 
 class Cita(db.Model):

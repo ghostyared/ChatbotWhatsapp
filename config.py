@@ -105,6 +105,8 @@ class Config:
                      _str("MENU_KEYWORDS", "hola,inicio,menu,empezar,comenzar,ayuda,info").split(",") if k.strip()]
     GLOBAL_MENU_KEYWORDS = [k.strip().lower() for k in
                             _str("GLOBAL_MENU_KEYWORDS", "inicio,menu,home,volver,0,empezar").split(",") if k.strip()]
+    OPT_OUT_KEYWORDS = [k.strip().lower() for k in
+                        _str("OPT_OUT_KEYWORDS", "baja,stop,no deseo mensajes,no enviar,cancelar suscripcion").split(",") if k.strip()]
     INACTIVE_STATES = [s.strip().lower() for s in
                        _str("INACTIVE_STATES", "inactivo,cesado,baja").split(",") if s.strip()]
 

@@ -159,6 +159,11 @@ def run_worker():
                         except Exception:
                             pass
             db.session.remove()
+        try:
+            with open("/tmp/worker_alive", "w") as fh:
+                fh.write(str(int(time.time())))
+        except OSError:
+            pass
         time.sleep(intervalo)
 
 

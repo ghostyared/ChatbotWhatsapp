@@ -5,7 +5,7 @@ from config import Config
 from .services import enviar_texto, enviar_botones, enviar_lista, enviar_documento
 from .flujos import ACCIONES, CONTINUADORES, estado as estado_flujo
 from .flujos.contexto import Contexto
-from .models import Empresa, Lead, ReglaCampana, RespuestaBot, Usuario, Colaborador, db, utcnow
+from .models import Empresa, Lead, LeadEvento, ReglaCampana, RespuestaBot, Usuario, Colaborador, db, utcnow
 from datetime import timedelta
 
 # Menús de respaldo si el nodo aún no existe en la BD (el panel/editor los sobrescribe).
@@ -215,12 +215,38 @@ def brain_gethi(tel, txt, btn_id, nombre_wa, tipo='text', media=None, referral=N
         usu = Usuario(telefono=tel, nombre_wa=nombre_wa)
         db.session.add(usu)
         db.session.commit()
-    usu.ultima_vez = utcnow()
+    ahora = utcnow()
+    usu.ultima_vez = ahora
+    usu.ultimo_msg_entrada = ahora
     # Si el usuario respondió, cancelar cualquier timer de inactividad pendiente
     if usu.esperando_usuario_desde or usu.aviso_inactividad_enviado:
         usu.esperando_usuario_desde = None
         usu.aviso_inactividad_enviado = False
     db.session.commit()
+
+    # Cumplimiento Meta: Opt-out automático (BAJA / STOP) para campañas promocionales
+    opt_kw = {normalizar_texto(k) for k in Config.OPT_OUT_KEYWORDS}
+    if tipo == 'text' and txt_norm and (txt_norm in opt_kw):
+        usu.opt_out = True
+        db.session.commit()
+        enviar_texto(
+            tel,
+            "✅ Registramos tu preferencia: ya no recibirás mensajes promocionales por WhatsApp. "
+            "Cuando quieras volver a consultarnos, solo escríbenos *Hola*.",
+        )
+        return
+
+    # Encuesta de satisfacción CSAT (1-5)
+    if btn_id.startswith("csat:"):
+        val_raw = btn_id.split(":", 1)[1].strip()
+        if val_raw.isdigit() and 1 <= int(val_raw) <= 5:
+            lead = Lead.query.filter_by(telefono=tel).order_by(Lead.id.desc()).first()
+            if lead:
+                lead.csat = int(val_raw)
+                db.session.add(LeadEvento(lead_id=lead.id, tipo='csat', detalle=f'Calificación {val_raw}/5', usuario='cliente'))
+                db.session.commit()
+            enviar_texto(tel, "🙏 ¡Muchas gracias por tu calificación! Nos ayuda a seguir mejorando nuestra atención.")
+            return
 
     # Modo híbrido: un humano atiende, el bot calla
     if usu.bot_pausado:

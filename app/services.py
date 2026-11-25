@@ -13,7 +13,7 @@ MAX_TITULO_BOTON = 20
 MAX_BOTONES = 3
 
 
-def registrar_msg(tel, nom, txt, direccion, wa_id=None):
+def registrar_msg(tel, nom, txt, direccion, wa_id=None, estado_envio=None, media_tipo=None, media_url=None):
     """
     Guarda un mensaje. Devuelve 'ok' si se guardó, 'dup' si el wa_id ya existía
     (reintento de Meta) o 'error' si falló el guardado.
@@ -27,6 +27,9 @@ def registrar_msg(tel, nom, txt, direccion, wa_id=None):
             contenido=txt or "Interacción con botón",
             direccion=direccion,
             wa_id=wa_id,
+            estado_envio=estado_envio,
+            media_tipo=media_tipo,
+            media_url=media_url,
         ))
         db.session.commit()
         return 'ok'
@@ -40,8 +43,7 @@ def registrar_msg(tel, nom, txt, direccion, wa_id=None):
 
 
 def enviar_api(payload, registro=None):
-    """Envía a WhatsApp y registra la SALIDA solo si Meta aceptó el mensaje.
-    `registro`: texto a guardar en el historial en lugar del contenido real (datos sensibles)."""
+    """Envía a WhatsApp y registra la SALIDA con wa_id (para checks de entrega/lectura) solo si Meta aceptó."""
     headers = {"Authorization": f"Bearer {Config.TOKEN_PERMANENTE}", "Content-Type": "application/json"}
     try:
         response = requests.post(Config.URL_API, json=payload, headers=headers, timeout=Config.WA_API_TIMEOUT)
@@ -55,19 +57,36 @@ def enviar_api(payload, registro=None):
     if response.status_code == 200:
         tipo = payload.get('type')
         txt_bot = ""
+        m_tipo, m_url = None, None
         if registro is not None:
             txt_bot = registro
         elif tipo == 'text':
             txt_bot = payload.get('text', {}).get('body', '')
         elif tipo == 'interactive':
             txt_bot = payload.get('interactive', {}).get('body', {}).get('text', '')
-        elif tipo == 'document':
-            doc = payload.get('document', {})
-            txt_bot = f"[Documento: {doc.get('filename') or doc.get('link', '')}] {doc.get('caption', '')}".strip()
+        elif tipo in ('document', 'image', 'video'):
+            obj = payload.get(tipo, {})
+            m_tipo = tipo
+            m_url = obj.get('link') or ''
+            etq = {'document': 'Documento', 'image': 'Imagen', 'video': 'Video'}[tipo]
+            nombre_f = obj.get('filename') or obj.get('link') or obj.get('id') or ''
+            txt_bot = f"[{etq}: {nombre_f}] {obj.get('caption', '')}".strip()
         elif tipo == 'template':
             tpl = payload.get('template', {})
             txt_bot = f"[Plantilla HSM: {tpl.get('name', '')}]"
-        registrar_msg(payload['to'], Config.bot_sender(), txt_bot, 'SALIDA')
+
+        out_wa_id = None
+        try:
+            msgs = response.json().get('messages') or []
+            if msgs and isinstance(msgs[0], dict):
+                out_wa_id = msgs[0].get('id')
+        except Exception:
+            out_wa_id = None
+
+        registrar_msg(
+            payload['to'], Config.bot_sender(), txt_bot, 'SALIDA',
+            wa_id=out_wa_id, estado_envio='sent', media_tipo=m_tipo, media_url=m_url,
+        )
     else:
         # No se registra el token ni el cuerpo completo; solo código y mensaje de Meta
         logger.warning("API WhatsApp respondió %s: %s", response.status_code, response.text[:500])
@@ -120,9 +139,50 @@ def enviar_lista(tel, txt, texto_boton, filas, titulo_seccion="Opciones"):
     return enviar_api(payload)
 
 
-def enviar_documento(tel, url, filename="brochure.pdf", caption="", registro=None):
-    """Envía un documento PDF/brochure por enlace HTTPS a través de WhatsApp Cloud API."""
-    doc = {"link": url, "filename": (filename or "documento.pdf")[:120]}
+def subir_media(data_bytes, mime_type, filename="archivo"):
+    """Sube un archivo (imagen/video/PDF) a WhatsApp Media API y devuelve su media_id."""
+    url = f"https://graph.facebook.com/{Config.GRAPH_API_VERSION}/{Config.PHONE_ID}/media"
+    headers = {"Authorization": f"Bearer {Config.TOKEN_PERMANENTE}"}
+    try:
+        r = requests.post(
+            url,
+            headers=headers,
+            data={"messaging_product": "whatsapp"},
+            files={"file": (filename, data_bytes, mime_type)},
+            timeout=Config.WA_MEDIA_TIMEOUT,
+        )
+        if r.status_code == 200:
+            return r.json().get("id")
+        logger.warning("Meta Media API respondió %s: %s", r.status_code, r.text[:300])
+    except requests.exceptions.RequestException as e:
+        logger.error("Error subiendo media a WhatsApp: %s", e)
+    return None
+
+
+def enviar_imagen(tel, url=None, media_id=None, caption="", registro=None):
+    """Envía una imagen (por URL HTTPS o media_id subido a Meta)."""
+    img = {"id": media_id} if media_id else {"link": url}
+    if caption:
+        img["caption"] = caption[:1024]
+    return enviar_api({
+        "messaging_product": "whatsapp", "to": tel, "type": "image", "image": img,
+    }, registro=registro)
+
+
+def enviar_video(tel, url=None, media_id=None, caption="", registro=None):
+    """Envía un video MP4 (por URL HTTPS o media_id subido a Meta)."""
+    vid = {"id": media_id} if media_id else {"link": url}
+    if caption:
+        vid["caption"] = caption[:1024]
+    return enviar_api({
+        "messaging_product": "whatsapp", "to": tel, "type": "video", "video": vid,
+    }, registro=registro)
+
+
+def enviar_documento(tel, url=None, filename="brochure.pdf", caption="", registro=None, media_id=None):
+    """Envía un documento PDF/brochure por enlace HTTPS o media_id a través de WhatsApp Cloud API."""
+    doc = {"id": media_id} if media_id else {"link": url}
+    doc["filename"] = (filename or "documento.pdf")[:120]
     if caption:
         doc["caption"] = caption[:1024]
     payload = {
@@ -135,7 +195,12 @@ def enviar_documento(tel, url, filename="brochure.pdf", caption="", registro=Non
 
 
 def enviar_plantilla(tel, nombre_template, idioma="es", componentes=None, registro=None):
-    """Envía una plantilla HSM aprobada por Meta (válida incluso fuera de la ventana de 24 h)."""
+    """Envía una plantilla HSM aprobada por Meta (respeta opt_out del contacto)."""
+    from .models import Usuario
+    usu = Usuario.query.filter_by(telefono=str(tel)).first()
+    if usu and getattr(usu, "opt_out", False):
+        logger.info("Envío HSM bloqueado por opt_out para %s", tel)
+        return None
     tpl = {"name": nombre_template, "language": {"code": idioma or "es"}}
     if componentes:
         tpl["components"] = componentes

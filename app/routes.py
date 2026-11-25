@@ -17,9 +17,11 @@ from werkzeug.security import check_password_hash
 from config import Config
 from . import csrf, endpoints_client as ep_cli, limiter
 from .bot_logic import brain_gethi
-from .models import (Ajuste, ApiEndpoint, Cita, Colaborador, Comprobante, Empresa, IaUso, Lead, Mensaje,
-                     PlantillaRapida, PreguntaPendiente, ReglaCampana, RespuestaBot, Usuario, UsuarioSistema, db, utcnow)
-from .services import enviar_plantilla, enviar_texto, registrar_msg
+from .models import (Ajuste, ApiEndpoint, Cita, Colaborador, Comprobante, Empresa, IaUso, Lead, LeadEvento,
+                     MaterialComercial, Mensaje, PlantillaRapida, PreguntaPendiente, ReglaCampana, RespuestaBot,
+                     Usuario, UsuarioSistema, db, utcnow)
+from .services import (enviar_documento, enviar_imagen, enviar_plantilla, enviar_texto, enviar_video,
+                       registrar_msg, subir_media)
 from .timeutil import to_local
 
 logger = logging.getLogger(__name__)
@@ -145,7 +147,18 @@ def receive():
     for entry in data.get('entry', []):
         for change in entry.get('changes', []):
             val = change.get('value', {})
-            # Ignora notificaciones de estado (entregado, leído...): solo procesa mensajes
+            # Actualizar checks de entrega/lectura (sent, delivered, read, failed) devueltos por Meta
+            for st in val.get('statuses', []):
+                st_id = st.get('id')
+                st_val = st.get('status')
+                if st_id and st_val in ('sent', 'delivered', 'read', 'failed'):
+                    m_out = Mensaje.query.filter_by(wa_id=st_id).first()
+                    if m_out:
+                        m_out.estado_envio = st_val
+                        errs = st.get('errors') or []
+                        if errs and isinstance(errs[0], dict):
+                            m_out.error_meta = f"{errs[0].get('code', '')}: {errs[0].get('title', '')}"[:300]
+                        db.session.commit()
             contactos = {c.get('wa_id'): (c.get('profile') or {}).get('name') for c in val.get('contacts', [])}
             for msg in val.get('messages', []):
                 tel = msg.get('from')
@@ -429,12 +442,19 @@ def chat_updates(tel=None):
     estado_chat = 'bot'
     asignado_a = ''
     handoff_brief = None
+    ventana_24h_activa = False
+    ventana_24h_min = 0
+    opt_out = False
     if tel and tel != 'none':
         mensajes_list = [
             {
                 "id": m.id,
                 "direccion": m.direccion,
                 "es_interno": bool(getattr(m, 'es_interno', False)),
+                "estado_envio": getattr(m, 'estado_envio', None) or '',
+                "error_meta": getattr(m, 'error_meta', None) or '',
+                "media_tipo": getattr(m, 'media_tipo', None) or '',
+                "media_url": getattr(m, 'media_url', None) or '',
                 "nombre": m.nombre if (m.direccion == 'ENTRADA' or getattr(m, 'es_interno', False)) else Config.bot_sender(),
                 "contenido": m.contenido,
                 "fecha": to_local(m.fecha, '%H:%M'),
@@ -445,6 +465,13 @@ def chat_updates(tel=None):
         if usu:
             estado_chat = usu.estado_chat or 'bot'
             asignado_a = usu.asignado_a or ''
+            opt_out = bool(getattr(usu, 'opt_out', False))
+            ref_in = getattr(usu, 'ultimo_msg_entrada', None) or usu.ultima_vez
+            if ref_in:
+                restante = (ref_in + timedelta(hours=24) - utcnow()).total_seconds()
+                if restante > 0:
+                    ventana_24h_activa = True
+                    ventana_24h_min = int(restante // 60)
         lead = Lead.query.filter_by(telefono=tel).order_by(Lead.id.desc()).first()
         if lead:
             handoff_brief = {
@@ -455,6 +482,7 @@ def chat_updates(tel=None):
                 "origen": lead.origen or 'organico',
                 "campana": lead.campana_nombre or '',
                 "score": lead.score or 'frio',
+                "tags": lead.tags or '',
                 "resumen": lead.resumen_ia or lead.comentario or '',
             }
     return jsonify({
@@ -464,6 +492,9 @@ def chat_updates(tel=None):
         "estado_chat": estado_chat,
         "asignado_a": asignado_a,
         "handoff_brief": handoff_brief,
+        "ventana_24h_activa": ventana_24h_activa,
+        "ventana_24h_min": ventana_24h_min,
+        "opt_out": opt_out,
     })
 
 
@@ -753,6 +784,131 @@ def send_message(tel):
             lead.asignado_a = g.user.username
     db.session.commit()
     return jsonify({"status": "success"})
+
+
+@main.route('/api/materiales')
+@limiter.exempt
+@agente_required
+def api_materiales():
+    items = MaterialComercial.query.filter_by(activo=True).order_by(MaterialComercial.id.desc()).all()
+    emps = {e.id: e.nombre_comercial for e in Empresa.query.all()}
+    return jsonify({
+        "materiales": [
+            {
+                "id": m.id,
+                "titulo": m.titulo,
+                "tipo": m.tipo,
+                "empresa": emps.get(m.empresa_id, "General"),
+                "url": m.url,
+                "caption": m.caption or "",
+            }
+            for m in items
+        ]
+    }), 200
+
+
+@main.route('/api/send_media/<tel>', methods=['POST'])
+@limiter.exempt
+@agente_required
+def api_send_media(tel):
+    """Envía una imagen, video o PDF al contacto desde la biblioteca (material_id), archivo subido o URL HTTPS."""
+    tipo = (request.form.get('tipo') or '').strip().lower()
+    caption = (request.form.get('caption') or '').strip()[:1024]
+    material_id = (request.form.get('material_id') or '').strip()
+    url_directa = (request.form.get('url') or '').strip()
+    archivo = request.files.get('archivo')
+
+    if request.is_json:
+        j = request.get_json(silent=True) or {}
+        material_id = str(j.get('material_id') or '')
+        tipo = str(j.get('tipo') or '').strip().lower()
+        url_directa = str(j.get('url') or '').strip()
+        caption = str(j.get('caption') or '').strip()[:1024]
+
+    resp = None
+    if material_id.isdigit():
+        mat = db.session.get(MaterialComercial, int(material_id))
+        if not mat:
+            return jsonify({"error": "Material no encontrado"}), 404
+        cap = caption or mat.caption or mat.titulo
+        if mat.tipo == 'image':
+            resp = enviar_imagen(tel, url=mat.url, caption=cap)
+        elif mat.tipo == 'video':
+            resp = enviar_video(tel, url=mat.url, caption=cap)
+        else:
+            resp = enviar_documento(tel, url=mat.url, filename=mat.filename or 'brochure.pdf', caption=cap)
+    elif archivo and archivo.filename:
+        mime = (archivo.mimetype or '').lower()
+        data = archivo.read()
+        if not data:
+            return jsonify({"error": "Archivo vacío"}), 400
+        if len(data) > 16 * 1024 * 1024:
+            return jsonify({"error": "El archivo supera el máximo permitido por WhatsApp (16 MB)"}), 400
+        media_id = subir_media(data, mime or 'application/octet-stream', archivo.filename)
+        if not media_id:
+            return jsonify({"error": "Meta Media API no aceptó el archivo"}), 502
+        if mime.startswith('image/'):
+            resp = enviar_imagen(tel, media_id=media_id, caption=caption)
+        elif mime.startswith('video/'):
+            resp = enviar_video(tel, media_id=media_id, caption=caption)
+        else:
+            resp = enviar_documento(tel, media_id=media_id, filename=archivo.filename, caption=caption)
+    elif url_directa and url_directa.startswith(('http://', 'https://')):
+        if tipo == 'video':
+            resp = enviar_video(tel, url=url_directa, caption=caption)
+        elif tipo == 'document':
+            resp = enviar_documento(tel, url=url_directa, filename='documento.pdf', caption=caption)
+        else:
+            resp = enviar_imagen(tel, url=url_directa, caption=caption)
+    else:
+        return jsonify({"error": "Envía material_id, archivo o url HTTPS"}), 400
+
+    if resp is None or resp.status_code != 200:
+        return jsonify({"error": "WhatsApp rechazó el envío multimedia"}), 502
+    return jsonify({"status": "success"}), 200
+
+
+@main.route('/admin/leads/broadcast', methods=['POST'])
+@admin_required
+def leads_broadcast():
+    """Campaña saliente HSM segmentada (respeta automáticamente opt_out=True)."""
+    tpl = (request.form.get('template_name') or '').strip()[:100]
+    idioma = (request.form.get('language') or 'es').strip()[:10]
+    estado_f = (request.form.get('estado') or 'todos').strip()
+    score_f = (request.form.get('score') or 'todos').strip()
+    emp_f = (request.form.get('empresa_id') or '').strip()
+    if not tpl:
+        flash('Indica el nombre de la plantilla HSM aprobada por Meta.', 'danger')
+        return redirect(url_for('main.leads'))
+
+    q = Lead.query.filter(Lead.estado != 'descartado')
+    if estado_f in Lead.ESTADOS:
+        q = q.filter_by(estado=estado_f)
+    if score_f in Lead.SCORES:
+        q = q.filter_by(score=score_f)
+    if emp_f.isdigit():
+        q = q.filter_by(empresa_id=int(emp_f))
+
+    leads_dest = q.limit(200).all()
+    enviados, omitidos_optout, fallidos = 0, 0, 0
+    vistos = set()
+    for l in leads_dest:
+        if l.telefono in vistos:
+            continue
+        vistos.add(l.telefono)
+        usu = Usuario.query.filter_by(telefono=l.telefono).first()
+        if usu and getattr(usu, 'opt_out', False):
+            omitidos_optout += 1
+            continue
+        r = enviar_plantilla(l.telefono, tpl, idioma=idioma)
+        if r is not None and r.status_code == 200:
+            enviados += 1
+            db.session.add(LeadEvento(lead_id=l.id, tipo='hsm', detalle=f'Broadcast HSM: {tpl}', usuario=g.user.username))
+        else:
+            fallidos += 1
+    db.session.commit()
+    flash(f'Broadcast «{tpl}»: {enviados} enviados, {omitidos_optout} omitidos por opt-out, {fallidos} fallidos.', 'success' if enviados else 'warning')
+    return redirect(url_for('main.leads'))
 
 
 @main.route('/api/plantillas_rapidas/<tel>')
@@ -1252,6 +1408,7 @@ def ia_panel():
     empresas = Empresa.query.order_by(Empresa.orden.asc(), Empresa.id.asc()).all()
     empresas_map = {e.id: e.nombre_comercial for e in empresas}
     campanas = ReglaCampana.query.order_by(ReglaCampana.id.desc()).all()
+    materiales = MaterialComercial.query.order_by(MaterialComercial.id.desc()).all()
     PlantillaRapida.seed()
     plantillas = PlantillaRapida.query.order_by(PlantillaRapida.id.asc()).all()
     preguntas_pendientes = (
@@ -1265,11 +1422,50 @@ def ia_panel():
                            gemini_modelo=Config.GEMINI_MODEL, openrouter_modelos=', '.join(Config.OPENROUTER_MODELS),
                            hoy=hoy, tope=Config.IA_MAX_LLAMADAS_DIA, catalogo=catalogo, aviso=Config.IA_AVISO,
                            ultimo_error=ia_router.ULTIMO_ERROR,
-                           empresas=empresas, empresas_map=empresas_map, campanas=campanas, plantillas=plantillas,
+                           empresas=empresas, empresas_map=empresas_map, campanas=campanas,
+                           materiales=materiales, plantillas=plantillas,
                            preguntas_pendientes=preguntas_pendientes,
                            saludo_preview=saludo_preview,
                            conocimiento=aj.valor if aj else '',
                            actualizado=(f"{to_local(aj.actualizado_en)} por {aj.actualizado_por}" if aj and aj.actualizado_en else ''))
+
+
+@main.route('/admin/ia/materiales/guardar', methods=['POST'])
+@admin_required
+def ia_material_guardar():
+    titulo = (request.form.get('titulo') or '').strip()[:150]
+    tipo = (request.form.get('tipo') or 'image').strip().lower()
+    url = (request.form.get('url') or '').strip()[:500]
+    emp_id = (request.form.get('empresa_id') or '').strip()
+    if tipo not in ('image', 'video', 'document'):
+        tipo = 'image'
+    if not titulo or not url.startswith(('http://', 'https://')):
+        flash('Indica un título y una URL HTTPS válida para el material.', 'danger')
+        return redirect(url_for('main.ia_panel'))
+    m = MaterialComercial(
+        empresa_id=int(emp_id) if emp_id.isdigit() else None,
+        titulo=titulo,
+        tipo=tipo,
+        url=url,
+        filename=(request.form.get('filename') or '').strip()[:120],
+        caption=(request.form.get('caption') or '').strip()[:500],
+        activo=True,
+    )
+    db.session.add(m)
+    db.session.commit()
+    flash(f'Material «{m.titulo}» agregado a la biblioteca.', 'success')
+    return redirect(url_for('main.ia_panel'))
+
+
+@main.route('/admin/ia/materiales/<int:mid>/eliminar', methods=['POST'])
+@admin_required
+def ia_material_eliminar(mid):
+    m = db.session.get(MaterialComercial, mid)
+    if m:
+        db.session.delete(m)
+        db.session.commit()
+        flash('Material eliminado de la biblioteca.', 'info')
+    return redirect(url_for('main.ia_panel'))
 
 
 @main.route('/admin/ia/plantillas/guardar', methods=['POST'])

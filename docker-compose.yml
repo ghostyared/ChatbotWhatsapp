@@ -39,6 +39,11 @@ services:
     depends_on:
       - app
     entrypoint: ["python", "-m", "app.timers"]
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/worker_alive && find /tmp/worker_alive -mmin -2 | grep -q ."]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     security_opt:
       - no-new-privileges:true
     mem_limit: 256m
@@ -51,6 +56,19 @@ services:
     logging:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
+
+  redis:
+    image: redis:7-alpine
+    container_name: qa_chatbot_redis
+    restart: always
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    mem_limit: 64m
+    cpus: 0.25
+    networks:
+      - proxy-net
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "2" }
 
 volumes:
   botdata:

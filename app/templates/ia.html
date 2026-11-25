@@ -782,6 +782,53 @@
         </div>
 
         <div class="ia-card">
+            <h3><i class="fa-solid fa-photo-film"></i> Biblioteca de Material Comercial (Imágenes, Videos y Brochures PDF)</h3>
+            <p style="color:var(--text-secondary);font-size:13px;margin-top:0;">
+                Registra aquí flyers, videos de campus/testimonios o brochures PDF por empresa. Tus asesores podrán enviarlos en 1 clic desde el Monitor en Vivo.
+            </p>
+            <form method="POST" action="{{ url_for('main.ia_material_guardar') }}" style="border:1px solid var(--border-color);border-radius:8px;padding:14px;background:#0f181e;margin-bottom:14px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:10px;">
+                    <input type="text" name="titulo" required placeholder="Título (ej. Video Campus Wiener)" style="padding:8px 10px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);">
+                    <select name="tipo" style="padding:8px 10px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);">
+                        <option value="image">🖼️ Imagen / Flyer (JPG/PNG)</option>
+                        <option value="video">🎬 Video (MP4)</option>
+                        <option value="document">📄 Brochure / PDF</option>
+                    </select>
+                    <select name="empresa_id" style="padding:8px 10px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);">
+                        <option value="">Todas / General</option>
+                        {% for e in empresas %}
+                        <option value="{{ e.id }}">{{ e.nombre_comercial }}</option>
+                        {% endfor %}
+                    </select>
+                    <input type="text" name="url" required placeholder="URL HTTPS pública del archivo" style="padding:8px 10px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);">
+                </div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+                    <input type="text" name="caption" placeholder="Texto acompañante opcional (caption en WhatsApp)..." style="flex:1;min-width:240px;padding:8px 10px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);">
+                    <button type="submit" class="btn-guardar"><i class="fa-solid fa-plus"></i> Guardar material</button>
+                </div>
+            </form>
+            {% if materiales %}
+            <div style="display:flex;flex-direction:column;gap:8px;">
+                {% for m in materiales %}
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 14px;border:1px solid var(--border-color);border-radius:8px;background:#0f181e;font-size:13px;">
+                    <div>
+                        <span class="chip">{{ '🖼️ IMAGEN' if m.tipo == 'image' else ('🎬 VIDEO' if m.tipo == 'video' else '📄 PDF') }}</span>
+                        <strong>{{ m.titulo }}</strong>
+                        <span class="badge-empresa badge-carrion" style="margin-left:6px;">{{ empresas_map.get(m.empresa_id, 'General') }}</span>
+                        <small style="color:var(--text-secondary);margin-left:6px;">{{ m.url[:55] }}</small>
+                    </div>
+                    <form method="POST" action="{{ url_for('main.ia_material_eliminar', mid=m.id) }}" style="margin:0;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn-no"><i class="fa-solid fa-trash"></i></button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="ia-card">
             <h3><i class="fa-solid fa-flask"></i> Simulador de respuesta (prueba tu texto oficial)</h3>
             <p style="color:var(--text-secondary);font-size:13px;margin-top:0;">
                 Escribe una pregunta tal como lo haría un padre o postulante en WhatsApp (p. ej. <em>«Hola, quiero info de precios del colegio»</em> o <em>«Qué carreras tiene el instituto»</em>) para verificar cómo responde la IA con lo que guardaste arriba.

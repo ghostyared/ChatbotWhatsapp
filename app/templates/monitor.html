@@ -389,6 +389,8 @@
                 <i class="fa-solid fa-circle-user" style="font-size: 30px; margin-right: 10px; color: var(--text-secondary);"></i>
                 <h3 style="margin:0;">{{ tel_activo }}</h3>
                 <span id="chatStateBadge" style="font-size:11px;padding:3px 9px;border-radius:12px;background:#202c33;color:#8696a0;border:1px solid #2f3b44;">BOT</span>
+                <span id="ventana24hBadge" style="font-size:11px;padding:3px 9px;border-radius:12px;background:#1a252c;color:#8696a0;border:1px solid #2f3b44;">24h: —</span>
+                <span id="optOutBadge" style="display:none;font-size:11px;padding:3px 9px;border-radius:12px;background:rgba(239,68,68,.2);color:#ef4444;border:1px solid rgba(239,68,68,.4);font-weight:700;">🚫 OPT-OUT</span>
                 <button id="toggleBotBtn" onclick="toggleBot()" style="margin-left: 10px; padding: 5px 14px; font-size: 12px; background: #333; color: white; border-radius: 5px; cursor: pointer; border: 1px solid #555;">
                     <i class="fa-solid fa-robot"></i> <span id="botStatusText">Bot Activo</span>
                 </button>
@@ -419,6 +421,24 @@
 
         <div id="atajosBar" style="padding:7px 18px;background:#162229;border-top:1px solid var(--border-color);display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
             <small style="color:var(--text-secondary);font-size:11.5px;"><i class="fa-solid fa-bolt"></i> Atajos:</small>
+            <button type="button" onclick="toggleMaterialPanel()" style="margin-left:auto;background:#1e3a5f;color:#93c5fd;border:1px solid #3b82f6;border-radius:14px;padding:3px 11px;font-size:12px;font-weight:700;cursor:pointer;">
+                <i class="fa-solid fa-paperclip"></i> Enviar Imagen / Video / PDF
+            </button>
+        </div>
+
+        <div id="materialPanel" style="display:none;padding:12px 18px;background:#111b21;border-top:1px solid var(--border-color);font-size:12.5px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <strong style="color:#00a884;"><i class="fa-solid fa-photo-film"></i> Enviar material comercial (Imagen, Video MP4 o PDF)</strong>
+                <button type="button" onclick="toggleMaterialPanel()" style="background:none;border:none;color:#8696a0;cursor:pointer;font-size:15px;">✕</button>
+            </div>
+            <div id="materialesLista" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <input type="file" id="mediaFileInput" accept="image/*,video/mp4,application/pdf" style="color:#e9edef;font-size:12px;">
+                <input type="text" id="mediaCaptionInput" placeholder="Texto opcional (caption)..." style="flex:1;min-width:160px;padding:6px 10px;border-radius:6px;border:1px solid #2f3b44;background:#202c33;color:#fff;">
+                <button type="button" onclick="enviarArchivoDirecto()" style="background:#00a884;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-weight:700;cursor:pointer;">
+                    <i class="fa-solid fa-upload"></i> Subir y enviar
+                </button>
+            </div>
         </div>
         
         <div class="chat-input-container" style="padding: 12px 20px; background: var(--header-bg); display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--border-color);">
@@ -550,6 +570,21 @@
                         const est = (data.estado_chat || 'bot').toUpperCase();
                         stateBadge.textContent = data.asignado_a ? `${est} · ${data.asignado_a}` : est;
                     }
+                    const v24 = document.getElementById('ventana24hBadge');
+                    if (v24) {
+                        if (data.ventana_24h_activa) {
+                            const h = Math.floor((data.ventana_24h_min || 0) / 60);
+                            const m = (data.ventana_24h_min || 0) % 60;
+                            v24.textContent = `🟢 Ventana 24h: ${h}h ${m}m`;
+                            v24.style.color = '#4ade80';
+                        } else {
+                            v24.textContent = '🟠 Ventana 24h cerrada (usar HSM)';
+                            v24.style.color = '#fbbf24';
+                        }
+                    }
+                    const oo = document.getElementById('optOutBadge');
+                    if (oo) oo.style.display = data.opt_out ? 'inline-block' : 'none';
+
                     const briefBar = document.getElementById('handoffBriefBar');
                     const briefTxt = document.getElementById('handoffBriefText');
                     if (briefBar && briefTxt && data.handoff_brief) {
@@ -558,22 +593,31 @@
                         briefTxt.textContent = `${b.nombre || '-'} | ${b.empresa || 'Sin empresa'} · ${b.programa || '-'} | Origen: ${b.origen}${b.campana ? ' (' + b.campana + ')' : ''} | Score: ${(b.score || 'frio').toUpperCase()} — ${b.resumen || ''}`;
                     }
 
-                    if (chatBox && data.mensajes.length > lastMessageCount) {
+                    if (chatBox && data.mensajes.length >= lastMessageCount) {
                         let newChatHtml = '';
+                        const checkIcon = (st, err) => {
+                            if (st === 'read') return ' <span style="color:#53bdeb;font-weight:700;" title="Leído">✓✓</span>';
+                            if (st === 'delivered') return ' <span style="color:#8696a0;" title="Entregado">✓✓</span>';
+                            if (st === 'sent') return ' <span style="color:#8696a0;" title="Enviado">✓</span>';
+                            if (st === 'failed') return ` <span style="color:#ef4444;" title="${escapeHtml(err || 'Error Meta')}">❌</span>`;
+                            return '';
+                        };
                         data.mensajes.forEach(m => {
                             const esInt = m.es_interno || m.direccion === 'INTERNO';
                             const senderName = esInt ? ('🔒 ' + m.nombre) : (m.direccion === 'ENTRADA' ? m.nombre : {{ brand.bot_sender|tojson }});
                             const safeDir = esInt ? 'INTERNO' : (m.direccion === 'ENTRADA' ? 'ENTRADA' : 'SALIDA');
                             const extraStyle = esInt ? 'style="background:rgba(245,158,11,0.16);border:1px solid rgba(245,158,11,0.45);align-self:center;max-width:80%;"' : '';
+                            const ticks = (safeDir === 'SALIDA') ? checkIcon(m.estado_envio, m.error_meta) : '';
                             newChatHtml += `
                                 <div class="bubble ${safeDir}" ${extraStyle}>
                                     <span class="sender">${escapeHtml(senderName)}</span>
                                     <div>${escapeHtml(m.contenido)}</div>
-                                    <span class="time-msg">${escapeHtml(m.fecha)}</span>
+                                    <span class="time-msg">${escapeHtml(m.fecha)}${ticks}</span>
                                 </div>`;
                         });
+                        const hadNew = data.mensajes.length > lastMessageCount;
                         chatBox.innerHTML = newChatHtml;
-                        chatBox.scrollTop = chatBox.scrollHeight;
+                        if (hadNew) chatBox.scrollTop = chatBox.scrollHeight;
                         lastMessageCount = data.mensajes.length;
                     }
                 }
@@ -607,6 +651,69 @@
         }
         cargarAtajos();
         fetchUpdates();
+
+        let materialesCargados = false;
+        async function toggleMaterialPanel() {
+            const panel = document.getElementById('materialPanel');
+            if (!panel) return;
+            const abrir = panel.style.display === 'none';
+            panel.style.display = abrir ? 'block' : 'none';
+            if (abrir && !materialesCargados) {
+                materialesCargados = true;
+                const r = await fetch('/api/materiales');
+                if (!r.ok) return;
+                const d = await r.json();
+                const cont = document.getElementById('materialesLista');
+                if (!d.materiales || !d.materiales.length) {
+                    cont.innerHTML = '<small style="color:#8696a0;">Sin materiales en biblioteca aún (cárgalos en /admin/ia o sube un archivo abajo).</small>';
+                    return;
+                }
+                d.materiales.forEach(m => {
+                    const b = document.createElement('button');
+                    b.type = 'button';
+                    const ico = m.tipo === 'image' ? '🖼️' : (m.tipo === 'video' ? '🎬' : '📄');
+                    b.textContent = `${ico} ${m.titulo} (${m.empresa})`;
+                    b.style.cssText = 'background:#202c33;color:#e9edef;border:1px solid #2f3b44;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;';
+                    b.onclick = () => enviarMaterialBiblioteca(m.id, m.titulo);
+                    cont.appendChild(b);
+                });
+            }
+        }
+
+        async function enviarMaterialBiblioteca(mid, titulo) {
+            if (telActivo === 'none') return;
+            if (!confirm(`¿Enviar "${titulo}" a +${telActivo}?`)) return;
+            const r = await fetch('/api/send_media/' + encodeURIComponent(telActivo), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                body: JSON.stringify({ material_id: mid })
+            });
+            if (r.ok) { toggleMaterialPanel(); fetchUpdates(); }
+            else { const e = await r.json().catch(() => ({})); alert(e.error || 'No se pudo enviar el material'); }
+        }
+
+        async function enviarArchivoDirecto() {
+            if (telActivo === 'none') return;
+            const inp = document.getElementById('mediaFileInput');
+            if (!inp || !inp.files.length) { alert('Selecciona una imagen, video MP4 o PDF.'); return; }
+            const fd = new FormData();
+            fd.append('archivo', inp.files[0]);
+            fd.append('caption', (document.getElementById('mediaCaptionInput') || {}).value || '');
+            const r = await fetch('/api/send_media/' + encodeURIComponent(telActivo), {
+                method: 'POST',
+                headers: { 'X-CSRFToken': CSRF },
+                body: fd
+            });
+            if (r.ok) {
+                inp.value = '';
+                document.getElementById('mediaCaptionInput').value = '';
+                toggleMaterialPanel();
+                fetchUpdates();
+            } else {
+                const e = await r.json().catch(() => ({}));
+                alert(e.error || 'Error subiendo/enviando archivo');
+            }
+        }
 
         async function sendWhisper() {
             if (telActivo === 'none') return;
