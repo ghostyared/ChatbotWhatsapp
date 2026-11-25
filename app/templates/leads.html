@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ brand.bot_name }} | Interesados</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-dark: #0b141a;
+            --card-bg: #111b21;
+            --header-bg: #202c33;
+            --input-bg: #2a3942;
+            --accent-green: #00a884;
+            --accent-green-hover: #06cf9c;
+            --text-primary: #e9edef;
+            --text-secondary: #8696a0;
+            --border-color: #2f3b44;
+            --hover-bg: #222e35;
+            --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* --- Top Global Navbar --- */
+        .top-navbar {
+            background-color: var(--header-bg);
+            height: 60px;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 30px;
+            border-bottom: 1px solid var(--border-color);
+            box-sizing: border-box;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .brand-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 19px;
+            font-weight: 700;
+            color: var(--accent-green);
+        }
+
+        .brand-logo i { font-size: 24px; }
+
+        .nav-tabs {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-tab {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 9px 18px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .nav-tab:hover {
+            background-color: var(--hover-bg);
+            color: var(--text-primary);
+        }
+
+        .nav-tab.active {
+            background-color: #005c4b;
+            color: #ffffff;
+        }
+
+        .nav-tab.logout { color: #ef4444; }
+        .nav-tab.logout:hover { background-color: rgba(239, 68, 68, 0.15); }
+
+        /* --- Main Container --- */
+        .main-container {
+            max-width: 1300px;
+            width: 92%;
+            margin: 30px auto;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        /* --- Alerts --- */
+        .alert-box {
+            padding: 14px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .alert-success {
+            background: rgba(0, 168, 132, 0.15);
+            border: 1px solid var(--accent-green);
+            color: #00a884;
+        }
+        .alert-error {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid #ef4444;
+            color: #ef4444;
+        }
+
+        /* --- KPI Grid --- */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+        }
+
+        .kpi-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 20px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: var(--card-shadow);
+        }
+
+        .kpi-info h4 {
+            margin: 0;
+            font-size: 13px;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+        }
+
+        .kpi-info .kpi-val {
+            font-size: 26px;
+            font-weight: 700;
+            margin: 6px 0 0 0;
+            color: var(--text-primary);
+        }
+
+        .kpi-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+        }
+        .icon-blue { background: rgba(83, 189, 235, 0.15); color: #53bdeb; }
+        .icon-green { background: rgba(0, 168, 132, 0.15); color: #00a884; }
+        .icon-purple { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
+
+        /* --- Action & Search Bar --- */
+        .action-bar {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            box-shadow: var(--card-shadow);
+        }
+
+        .search-form {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            max-width: 600px;
+        }
+
+        .search-form input, .search-form select {
+            padding: 10px 14px;
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+        }
+        .search-form input { flex: 1; }
+
+        .search-form button {
+            background: #202c33;
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 10px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: 0.2s;
+        }
+        .search-form button:hover {
+            border-color: var(--accent-green);
+        }
+
+        .btn-group-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-main {
+            padding: 10px 18px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: 0.2s;
+            text-decoration: none;
+        }
+
+        .btn-add {
+            background-color: var(--accent-green);
+            color: white;
+        }
+        .btn-add:hover { background-color: var(--accent-green-hover); }
+
+        .btn-excel {
+            background-color: var(--input-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+        .btn-excel:hover { background-color: var(--hover-bg); }
+
+        /* --- Tabla de Colaboradores --- */
+        .table-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: var(--card-shadow);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 14px;
+        }
+
+        th {
+            color: var(--text-secondary);
+            font-size: 12px;
+            text-transform: uppercase;
+            font-weight: 600;
+            background: #0f181e;
+        }
+
+        tr:hover { background-color: var(--hover-bg); }
+
+        .badge-empresa {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge-wiener { background: rgba(0, 168, 132, 0.2); color: #00a884; }
+        .badge-carrion { background: rgba(83, 189, 235, 0.2); color: #53bdeb; }
+
+        .badge-estado {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .estado-activo { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+        .estado-inactivo { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+        .action-btns {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-row-action {
+            padding: 6px 10px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            transition: 0.2s;
+        }
+        .btn-edit { background: var(--input-bg); color: #53bdeb; }
+        .btn-edit:hover { background: #53bdeb; color: white; }
+        .btn-del { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+        .btn-del:hover { background: #ef4444; color: white; }
+
+        /* --- Pagination --- */
+        .pagination-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .pagination-info {
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        .pagination-buttons {
+            display: flex;
+            gap: 6px;
+        }
+
+        .page-btn {
+            padding: 6px 12px;
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .page-btn:hover { background: var(--hover-bg); border-color: var(--accent-green); }
+        .page-btn.active { background: var(--accent-green); color: white; border-color: var(--accent-green); }
+        .page-btn.disabled { opacity: 0.4; pointer-events: none; }
+
+        /* --- Modales --- */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-box {
+            background: #111b21;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            width: 500px;
+            padding: 24px;
+            box-shadow: 0 10px 35px rgba(0,0,0,0.6);
+        }
+        .modal-box h3 { margin: 0 0 18px 0; color: var(--accent-green); font-size: 18px; }
+
+        .modal-form .form-group {
+            margin-bottom: 16px;
+        }
+        .modal-form label {
+            display: block;
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+        .modal-form input, .modal-form select {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 14px;
+            box-sizing: border-box;
+            outline: none;
+        }
+        .modal-form input:focus, .modal-form select:focus {
+            border-color: var(--accent-green);
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .upload-dropzone {
+            border: 2px dashed var(--accent-green);
+            padding: 30px;
+            text-align: center;
+            border-radius: 8px;
+            background: #1a252c;
+            margin-bottom: 15px;
+        }
+    
+        .estado-pendiente { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+        .estado-aprobado { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+        .estado-rechazado { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+        .tabs-estado { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+        .tab-estado { padding: 8px 16px; border-radius: 20px; border: 1px solid #2f3b44; color: #8696a0; text-decoration: none; font-size: 13px; font-weight: 600; }
+        .tab-estado.active { background: #00a884; border-color: #00a884; color: #fff; }
+        .rev-form { display: inline-flex; gap: 6px; align-items: center; margin: 2px 0; }
+        .rev-form input[type=text] { background: #202c33; border: 1px solid #2f3b44; color: #e9edef; border-radius: 8px; padding: 6px 10px; font-size: 12px; width: 170px; }
+        .btn-ok { background: rgba(34,197,94,.18); color: #22c55e; border: 1px solid rgba(34,197,94,.4); border-radius: 8px; padding: 6px 12px; cursor: pointer; font-weight: 700; font-size: 12px; }
+        .btn-no { background: rgba(239,68,68,.15); color: #ef4444; border: 1px solid rgba(239,68,68,.4); border-radius: 8px; padding: 6px 12px; cursor: pointer; font-weight: 700; font-size: 12px; }
+        .dup-flag { background: rgba(245,158,11,.18); color: #f59e0b; border-radius: 6px; padding: 2px 7px; font-size: 11px; font-weight: 700; margin-left: 6px; }
+    
+        .estado-nuevo{background:rgba(59,130,246,.15);color:#60a5fa}.estado-contactado{background:rgba(245,158,11,.15);color:#f59e0b}
+        .estado-visita{background:rgba(168,85,247,.15);color:#c084fc}.estado-matriculado{background:rgba(34,197,94,.15);color:#22c55e}
+        .estado-descartado{background:rgba(134,150,160,.15);color:#8696a0}
+        .prio-alta{background:rgba(239,68,68,.18);color:#f87171;border:1px solid rgba(239,68,68,.35)}
+        .prio-media{background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3)}
+        .prio-baja{background:rgba(134,150,160,.15);color:#9ca3af}
+        .lead-form{display:flex;flex-direction:column;gap:6px;min-width:210px}
+        .lead-form select,.lead-form input[type=text]{background:#202c33;border:1px solid #2f3b44;color:#e9edef;border-radius:7px;padding:6px 9px;font-size:12px}
+        .lead-row-2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+        .chip{background:rgba(0,168,132,.15);color:#00a884;border-radius:6px;padding:2px 7px;font-size:11px;font-weight:700;margin-right:4px;display:inline-block;margin-bottom:3px}
+        .call-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+        .btn-call{background:rgba(34,197,94,.2);color:#4ade80;border:1px solid rgba(34,197,94,.4);border-radius:6px;padding:4px 9px;font-size:11.5px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:5px}
+        .btn-call:hover{background:#22c55e;color:#0b141a}
+        .btn-chat{background:rgba(83,189,235,.16);color:#53bdeb;border:1px solid rgba(83,189,235,.35);border-radius:6px;padding:4px 9px;font-size:11.5px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:5px}
+        .btn-chat:hover{background:#53bdeb;color:#0b141a}
+        .btn-take{background:rgba(168,85,247,.18);color:#c084fc;border:1px solid rgba(168,85,247,.38);border-radius:6px;padding:4px 9px;font-size:11.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+        .btn-take:hover{background:#a855f7;color:#fff}
+    </style>
+</head>
+<body>
+
+    <header class="top-navbar">
+        <div class="brand-logo">
+            <i class="fa-solid fa-headset"></i>
+            <span>{{ brand.bot_name }} · CRM</span>
+        </div>
+        <nav class="nav-tabs">
+            {% if session.get('user_role') == 'admin' %}
+            <a href="/dashboard" class="nav-tab"><i class="fa-solid fa-chart-line"></i> Dashboard</a>
+            {% endif %}
+            <a href="/monitor" class="nav-tab"><i class="fa-solid fa-comments"></i> Monitor en Vivo</a>
+            {% if session.get('user_role') in ('admin', 'contabilidad') %}
+            <a href="/admin/comprobantes" class="nav-tab"><i class="fa-solid fa-receipt"></i> Comprobantes</a>
+            {% endif %}
+            <a href="/admin/leads" class="nav-tab active"><i class="fa-solid fa-headset"></i> CRM / Call Center</a>
+            {% if session.get('user_role') == 'admin' %}
+            <a href="/admin/ia" class="nav-tab"><i class="fa-solid fa-wand-magic-sparkles"></i> Asistente IA</a>
+            <a href="/admin/endpoints" class="nav-tab"><i class="fa-solid fa-plug"></i> Endpoints API</a>
+            <a href="/admin/editor" class="nav-tab"><i class="fa-solid fa-pen-to-square"></i> Editor del Bot</a>
+            <a href="/admin/colaboradores" class="nav-tab"><i class="fa-solid fa-users"></i> Colaboradores</a>
+            <a href="/admin/usuarios" class="nav-tab"><i class="fa-solid fa-user-shield"></i> Usuarios</a>
+            {% endif %}
+            <span style="color: #8696a0; font-size: 13px; margin: 0 4px; display: flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-circle-user" style="color: #00a884; font-size: 16px;"></i>
+                <strong style="color: #e9edef;">{{ session.get('username', 'Usuario') }}</strong>
+            </span>
+            <a href="/logout" class="nav-tab logout"><i class="fa-solid fa-power-off"></i> Salir</a>
+        </nav>
+    </header>
+
+    <div class="main-container">
+        {% with mensajes = get_flashed_messages(with_categories=true) %}
+        {% for cat, msg in mensajes %}
+        <div class="alert-box {{ 'alert-success' if cat in ('success', 'info') else 'alert-error' }}"><i class="fa-solid fa-circle-info"></i> {{ msg }}</div>
+        {% endfor %}
+        {% endwith %}
+
+        <!-- Cola operativa de Call Center -->
+        <div class="tabs-estado" style="margin-bottom:4px;">
+            <a class="tab-estado {% if cola == 'todos' %}active{% endif %}" href="{{ url_for('main.leads', cola='todos', estado=estado, q=q) }}">📋 Todos ({{ total }})</a>
+            <a class="tab-estado {% if cola == 'llamar' %}active{% endif %}" href="{{ url_for('main.leads', cola='llamar', estado=estado, q=q) }}">🔥 Por llamar ({{ por_llamar }})</a>
+            <a class="tab-estado {% if cola == 'sin_asignar' %}active{% endif %}" href="{{ url_for('main.leads', cola='sin_asignar', estado=estado, q=q) }}">📥 Sin asignar ({{ sin_asignar }})</a>
+            <a class="tab-estado {% if cola == 'mios' %}active{% endif %}" href="{{ url_for('main.leads', cola='mios', estado=estado, q=q) }}">🙋 Mis leads ({{ mios }})</a>
+        </div>
+
+        <div class="tabs-estado">
+            <a class="tab-estado {% if estado == 'todos' %}active{% endif %}" href="{{ url_for('main.leads', cola=cola, estado='todos', q=q) }}">Estado: Todos</a>
+            {% for e in estados %}
+            <a class="tab-estado {% if estado == e %}active{% endif %}" href="{{ url_for('main.leads', cola=cola, estado=e, q=q) }}">{{ e|capitalize }} ({{ conteos.get(e, 0) }})</a>
+            {% endfor %}
+        </div>
+
+        <div class="action-bar">
+            <form class="search-form" method="GET" action="/admin/leads">
+                <input type="hidden" name="estado" value="{{ estado }}">
+                <input type="hidden" name="cola" value="{{ cola }}">
+                <input type="text" name="q" value="{{ q }}" placeholder="Buscar por nombre, teléfono, sede o resumen...">
+                <button type="submit"><i class="fa-solid fa-magnifying-glass"></i> Buscar</button>
+            </form>
+            <small style="color:var(--text-secondary);font-size:12px;">
+                <i class="fa-solid fa-phone-volume" style="color:#00a884;"></i>
+                Pulsa <strong>Llamar</strong> para marcar desde móvil/softphone VoIP o <strong>Chat</strong> para escribir por WhatsApp.
+            </small>
+        </div>
+
+        <div class="table-card">
+            <table>
+                <thead><tr><th># / Prio</th><th>Contacto y Acciones</th><th>Sede / Interés</th><th>Resumen IA / Detalle</th><th>Asignado / Estado</th><th>Gestión Call Center</th></tr></thead>
+                <tbody>
+                {% for l in pag.items %}
+                {% set tel_marcar = l.telefono_contacto or l.telefono %}
+                <tr>
+                    <td>
+                        <div style="font-weight:700;color:#53bdeb;">#{{ l.id }}</div>
+                        <span class="badge-estado prio-{{ l.prioridad or 'media' }}" style="margin-top:4px;display:inline-block;">{{ (l.prioridad or 'media')|upper }}</span>
+                        <div style="font-size:11px;color:#8696a0;margin-top:4px;">{{ l.creado_en|localtime }}</div>
+                    </td>
+                    <td>
+                        <strong>{{ l.nombre or 'Sin nombre' }}</strong><br>
+                        <small style="color:#8696a0;">WA: +{{ l.telefono }}</small>
+                        {% if l.telefono_contacto %}<br><small style="color:#4ade80;">Tel: {{ l.telefono_contacto }}</small>{% endif %}
+                        <div class="call-actions">
+                            <a href="tel:+{{ tel_marcar|replace('+', '')|replace(' ', '') }}" class="btn-call" title="Marcar por teléfono / softphone"><i class="fa-solid fa-phone"></i> Llamar</a>
+                            <a href="{{ url_for('main.monitor', tel=l.telefono) }}" class="btn-chat" title="Abrir conversación WhatsApp"><i class="fa-solid fa-comments"></i> Chat</a>
+                            {% if l.asignado_a != session.get('username') %}
+                            <form method="POST" action="{{ url_for('main.lead_tomar', lid=l.id) }}" style="margin:0;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+                                <button type="submit" class="btn-take" title="Asignarme este lead"><i class="fa-solid fa-hand"></i> Tomar</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td>
+                        <strong>{{ l.sede_nombre or l.sede_id or '-' }}</strong><br>
+                        <small style="color:#8696a0;">{{ l.nivel or '' }}</small>
+                        {% if l.edad_hijo %}<br><span class="chip">👶 {{ l.edad_hijo }}</span>{% endif %}
+                    </td>
+                    <td style="max-width:260px;">
+                        {% if l.visita_pref %}<span class="chip">📅 {{ l.visita_pref }}</span>{% endif %}
+                        {% if l.quiere_asesor %}<span class="chip" style="background:rgba(239,68,68,.18);color:#f87171;">📞 Pide llamada/asesor</span>{% endif %}
+                        {% if not l.asesor_avisado %}<span class="dup-flag" title="No se envió aviso automático (configura ASESOR_TELEFONO o webhook notificar_callcenter)">sin aviso</span>{% endif %}
+                        <div style="font-size:12.5px;color:#d1d7db;margin-top:4px;line-height:1.4;">{{ l.resumen_ia or l.comentario or '—' }}</div>
+                    </td>
+                    <td>
+                        <span class="badge-estado estado-{{ l.estado }}">{{ l.estado|capitalize }}</span><br>
+                        <small style="color:#8696a0;display:block;margin-top:4px;">📞 {{ (l.resultado_llamada or 'pendiente')|replace('_', ' ')|capitalize }}</small>
+                        <small style="color:#53bdeb;display:block;margin-top:2px;">👤 {{ l.asignado_a or 'Sin asignar' }}</small>
+                    </td>
+                    <td>
+                        <form class="lead-form" method="POST" action="{{ url_for('main.lead_actualizar', lid=l.id) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+                            <div class="lead-row-2">
+                                <select name="estado" title="Estado comercial">{% for e in estados %}<option value="{{ e }}" {% if e == l.estado %}selected{% endif %}>{{ e|capitalize }}</option>{% endfor %}</select>
+                                <select name="prioridad" title="Prioridad">{% for p in prioridades %}<option value="{{ p }}" {% if p == (l.prioridad or 'media') %}selected{% endif %}>Prio: {{ p|capitalize }}</option>{% endfor %}</select>
+                            </div>
+                            <div class="lead-row-2">
+                                <select name="resultado_llamada" title="Resultado de llamada">{% for r in resultados_llamada %}<option value="{{ r }}" {% if r == (l.resultado_llamada or 'pendiente') %}selected{% endif %}>{{ r|replace('_', ' ')|capitalize }}</option>{% endfor %}</select>
+                                <select name="asignado_a" title="Agente asignado">
+                                    <option value="">Sin asignar</option>
+                                    {% for ag in agentes %}
+                                    <option value="{{ ag }}" {% if ag == l.asignado_a %}selected{% endif %}>{{ ag }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <input type="text" name="telefono_contacto" maxlength="30" value="{{ l.telefono_contacto or '' }}" placeholder="Teléfono alternativo (opcional)">
+                            <input type="text" name="notas" maxlength="500" value="{{ l.notas_internas or '' }}" placeholder="Nota de llamada / seguimiento">
+                            <button class="btn-ok" type="submit">Guardar gestión</button>
+                        </form>
+                        {% if bot_pausado.get(l.telefono) %}
+                        <form class="lead-form" method="POST" action="{{ url_for('main.lead_reactivar_bot', lid=l.id) }}" style="margin-top:6px;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+                            <button class="btn-no" type="submit" title="El bot está en pausa para este contacto">▶ Reactivar bot</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-secondary);">No hay interesados en esta vista.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            <div class="pagination-container">
+                <div class="pagination-info">Página {{ pag.page }} de {{ pag.pages or 1 }} (Total: {{ pag.total }})</div>
+                <div class="pagination-buttons">
+                    {% if pag.has_prev %}<a href="{{ url_for('main.leads', page=pag.prev_num, cola=cola, estado=estado, q=q) }}" class="page-btn">Anterior</a>{% else %}<span class="page-btn disabled">Anterior</span>{% endif %}
+                    {% if pag.has_next %}<a href="{{ url_for('main.leads', page=pag.next_num, cola=cola, estado=estado, q=q) }}" class="page-btn">Siguiente</a>{% else %}<span class="page-btn disabled">Siguiente</span>{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

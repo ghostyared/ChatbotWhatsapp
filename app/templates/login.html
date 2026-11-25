@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acceso Seguro | {{ brand.bot_name }} Admin</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-dark: #0b141a;
+            --card-bg: #111b21;
+            --card-border: #2f3b44;
+            --accent-green: #00a884;
+            --accent-green-hover: #06cf9c;
+            --accent-glow: rgba(0, 168, 132, 0.25);
+            --text-main: #e9edef;
+            --text-sub: #8696a0;
+            --input-bg: #182229;
+            --input-border: #2a3942;
+            --error-red: #ef4444;
+            --warning-amber: #f59e0b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            padding: 20px;
+        }
+
+        /* Fondo dinámico y sutil con iluminación ambiental */
+        .ambient-glow-1 {
+            position: absolute;
+            width: 450px;
+            height: 450px;
+            background: radial-gradient(circle, rgba(0, 168, 132, 0.12) 0%, transparent 70%);
+            top: -100px;
+            right: -100px;
+            border-radius: 50%;
+            pointer-events: none;
+            animation: floatGlow 12s ease-in-out infinite alternate;
+        }
+
+        .ambient-glow-2 {
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(37, 99, 235, 0.08) 0%, transparent 70%);
+            bottom: -120px;
+            left: -120px;
+            border-radius: 50%;
+            pointer-events: none;
+            animation: floatGlow 16s ease-in-out infinite alternate-reverse;
+        }
+
+        @keyframes floatGlow {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(30px, 40px) scale(1.1); }
+        }
+
+        /* Tarjeta principal de Login */
+        .login-wrapper {
+            width: 100%;
+            max-width: 440px;
+            position: relative;
+            z-index: 10;
+        }
+
+        .login-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 38px 32px;
+            box-shadow: 0 16px 45px rgba(0, 0, 0, 0.55), 0 0 20px var(--accent-glow);
+            backdrop-filter: blur(10px);
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .login-card:hover {
+            border-color: rgba(0, 168, 132, 0.4);
+        }
+
+        /* Cabecera del login */
+        .login-header {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        .brand-icon-box {
+            width: 68px;
+            height: 68px;
+            margin: 0 auto 16px;
+            border-radius: 18px;
+            background: rgba(0, 168, 132, 0.12);
+            border: 1.5px solid rgba(0, 168, 132, 0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 16px rgba(0, 168, 132, 0.2);
+            animation: pulse-robot 3s infinite ease-in-out;
+        }
+
+        .brand-icon-box i {
+            font-size: 32px;
+            color: var(--accent-green);
+        }
+
+        @keyframes pulse-robot {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .login-title {
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            color: #ffffff;
+            margin-bottom: 6px;
+        }
+
+        .login-title span {
+            color: var(--accent-green);
+        }
+
+        .login-subtitle {
+            color: var(--text-sub);
+            font-size: 13.5px;
+            line-height: 1.4;
+        }
+
+        .security-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(0, 168, 132, 0.1);
+            color: var(--accent-green);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 20px;
+            margin-top: 10px;
+            border: 1px solid rgba(0, 168, 132, 0.25);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Alertas de Error y Advertencia */
+        .alert-container {
+            margin-bottom: 20px;
+        }
+
+        .alert-box {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-size: 13px;
+            line-height: 1.4;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .alert-danger {
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            color: #fca5a5;
+        }
+
+        .alert-warning {
+            background: rgba(245, 158, 11, 0.12);
+            border: 1px solid rgba(245, 158, 11, 0.35);
+            color: #fde68a;
+        }
+
+        .alert-box i {
+            font-size: 16px;
+            margin-top: 2px;
+            flex-shrink: 0;
+        }
+
+        /* Grupos de formulario */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--text-sub);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 14px;
+            color: var(--text-sub);
+            font-size: 15px;
+            pointer-events: none;
+            transition: color 0.2s ease;
+        }
+
+        .form-input {
+            width: 100%;
+            background: var(--input-bg);
+            border: 1.5px solid var(--input-border);
+            border-radius: 10px;
+            padding: 12px 42px 12px 40px;
+            color: var(--text-main);
+            font-size: 14px;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus {
+            border-color: var(--accent-green);
+            background: #202c33;
+            box-shadow: 0 0 0 3px rgba(0, 168, 132, 0.15);
+        }
+
+        .form-input:focus + .input-icon,
+        .input-wrapper:focus-within .input-icon {
+            color: var(--accent-green);
+        }
+
+        .btn-toggle-password {
+            position: absolute;
+            right: 12px;
+            background: transparent;
+            border: none;
+            color: var(--text-sub);
+            cursor: pointer;
+            padding: 6px;
+            font-size: 15px;
+            border-radius: 6px;
+            transition: color 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-toggle-password:hover {
+            color: var(--text-main);
+        }
+
+        /* Aviso de Bloq Mayús */
+        .caps-warning {
+            display: none;
+            align-items: center;
+            gap: 6px;
+            color: var(--warning-amber);
+            font-size: 11.5px;
+            margin-top: 6px;
+            font-weight: 600;
+        }
+
+        /* Botón de ingreso */
+        .btn-submit {
+            width: 100%;
+            background: var(--accent-green);
+            color: #ffffff;
+            border: none;
+            border-radius: 10px;
+            padding: 13px;
+            font-size: 14.5px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 10px;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 14px rgba(0, 168, 132, 0.35);
+        }
+
+        .btn-submit:hover:not(:disabled) {
+            background: var(--accent-green-hover);
+            box-shadow: 0 6px 20px rgba(0, 168, 132, 0.5);
+            transform: translateY(-1px);
+        }
+
+        .btn-submit:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Pie de página con auditoría de seguridad */
+        .login-footer {
+            margin-top: 24px;
+            text-align: center;
+            border-top: 1px solid rgba(255, 255, 255, 0.07);
+            padding-top: 18px;
+        }
+
+        .security-notes {
+            color: var(--text-sub);
+            font-size: 11.5px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            line-height: 1.4;
+        }
+
+        .security-notes i {
+            color: var(--accent-green);
+        }
+
+        .security-notes strong {
+            color: var(--text-main);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ambient-glow-1"></div>
+    <div class="ambient-glow-2"></div>
+
+    <div class="login-wrapper">
+        <div class="login-card">
+            
+            <div class="login-header">
+                <div class="brand-icon-box">
+                    <i class="fa-solid fa-robot"></i>
+                </div>
+                <h1 class="login-title">{{ brand.bot_name }} <span>Admin</span></h1>
+                <p class="login-subtitle">Panel de Control y Monitoreo de Asistente Virtual</p>
+                <div class="security-badge">
+                    <i class="fa-solid fa-shield-halved"></i> Autenticación Segura & Anti-Bruteforce
+                </div>
+            </div>
+
+            {% if error %}
+            <div class="alert-container">
+                <div class="alert-box alert-danger">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                    <div>{{ error }}</div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if warning %}
+            <div class="alert-container">
+                <div class="alert-box alert-warning">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <div>{{ warning }}</div>
+                </div>
+            </div>
+            {% endif %}
+
+            <form method="POST" action="/login" id="loginForm" onsubmit="handleSubmit(event)">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <div class="form-group">
+                    <label class="form-label" for="usernameInput">Usuario / Identificador</label>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-user input-icon"></i>
+                        <input 
+                            type="text" 
+                            name="u" 
+                            id="usernameInput" 
+                            class="form-input" 
+                            placeholder="Ej. admin o tu usuario asignado" 
+                            required 
+                            autocomplete="username" 
+                            autofocus
+                        >
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="passwordInput">Contraseña de Seguridad</label>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-lock input-icon"></i>
+                        <input 
+                            type="password" 
+                            name="p" 
+                            id="passwordInput" 
+                            class="form-input" 
+                            placeholder="••••••••••••" 
+                            required 
+                            autocomplete="current-password"
+                        >
+                        <button type="button" class="btn-toggle-password" id="togglePasswordBtn" onclick="togglePasswordVisibility()" title="Mostrar u ocultar contraseña">
+                            <i class="fa-solid fa-eye" id="eyeIcon"></i>
+                        </button>
+                    </div>
+                    <div class="caps-warning" id="capsWarning">
+                        <i class="fa-solid fa-triangle-exclamation"></i> Bloq Mayús está activado
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-submit" id="submitBtn">
+                    <i class="fa-solid fa-right-to-bracket" id="submitIcon"></i>
+                    <span id="submitText">Iniciar Sesión</span>
+                </button>
+            </form>
+
+            <div class="login-footer">
+                <div class="security-notes">
+                    <div><i class="fa-solid fa-lock"></i> Contraseñas cifradas con algoritmo <strong>Scrypt / PBKDF2</strong>.</div>
+                    <div><i class="fa-solid fa-shield-virus"></i> Bloqueo temporal automático tras <strong>5 intentos fallidos</strong>.</div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        function togglePasswordVisibility() {
+            const passInput = document.getElementById('passwordInput');
+            const eyeIcon = document.getElementById('eyeIcon');
+            if (passInput.type === 'password') {
+                passInput.type = 'text';
+                eyeIcon.className = 'fa-solid fa-eye-slash';
+            } else {
+                passInput.type = 'password';
+                eyeIcon.className = 'fa-solid fa-eye';
+            }
+        }
+
+        // Detección de Bloq Mayús (Caps Lock)
+        const passwordInput = document.getElementById('passwordInput');
+        const capsWarning = document.getElementById('capsWarning');
+        
+        passwordInput.addEventListener('keyup', function(event) {
+            if (event.getModifierState && event.getModifierState('CapsLock')) {
+                capsWarning.style.display = 'flex';
+            } else {
+                capsWarning.style.display = 'none';
+            }
+        });
+
+        // Prevención de doble clic y efecto visual de carga
+        function handleSubmit(e) {
+            const submitBtn = document.getElementById('submitBtn');
+            const submitIcon = document.getElementById('submitIcon');
+            const submitText = document.getElementById('submitText');
+
+            submitBtn.disabled = true;
+            submitIcon.className = 'fa-solid fa-spinner fa-spin';
+            submitText.textContent = 'Verificando credenciales...';
+        }
+    </script>
+</body>
+</html>

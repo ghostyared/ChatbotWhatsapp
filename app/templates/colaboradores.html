@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ brand.bot_name }} Admin | Gestión de Colaboradores</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-dark: #0b141a;
+            --card-bg: #111b21;
+            --header-bg: #202c33;
+            --input-bg: #2a3942;
+            --accent-green: #00a884;
+            --accent-green-hover: #06cf9c;
+            --text-primary: #e9edef;
+            --text-secondary: #8696a0;
+            --border-color: #2f3b44;
+            --hover-bg: #222e35;
+            --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* --- Top Global Navbar --- */
+        .top-navbar {
+            background-color: var(--header-bg);
+            height: 60px;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 30px;
+            border-bottom: 1px solid var(--border-color);
+            box-sizing: border-box;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .brand-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 19px;
+            font-weight: 700;
+            color: var(--accent-green);
+        }
+
+        .brand-logo i { font-size: 24px; }
+
+        .nav-tabs {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-tab {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 9px 18px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .nav-tab:hover {
+            background-color: var(--hover-bg);
+            color: var(--text-primary);
+        }
+
+        .nav-tab.active {
+            background-color: #005c4b;
+            color: #ffffff;
+        }
+
+        .nav-tab.logout { color: #ef4444; }
+        .nav-tab.logout:hover { background-color: rgba(239, 68, 68, 0.15); }
+
+        /* --- Main Container --- */
+        .main-container {
+            max-width: 1300px;
+            width: 92%;
+            margin: 30px auto;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        /* --- Alerts --- */
+        .alert-box {
+            padding: 14px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .alert-success {
+            background: rgba(0, 168, 132, 0.15);
+            border: 1px solid var(--accent-green);
+            color: #00a884;
+        }
+        .alert-error {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid #ef4444;
+            color: #ef4444;
+        }
+
+        /* --- KPI Grid --- */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+        }
+
+        .kpi-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 20px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: var(--card-shadow);
+        }
+
+        .kpi-info h4 {
+            margin: 0;
+            font-size: 13px;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+        }
+
+        .kpi-info .kpi-val {
+            font-size: 26px;
+            font-weight: 700;
+            margin: 6px 0 0 0;
+            color: var(--text-primary);
+        }
+
+        .kpi-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+        }
+        .icon-blue { background: rgba(83, 189, 235, 0.15); color: #53bdeb; }
+        .icon-green { background: rgba(0, 168, 132, 0.15); color: #00a884; }
+        .icon-purple { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
+
+        /* --- Action & Search Bar --- */
+        .action-bar {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            box-shadow: var(--card-shadow);
+        }
+
+        .search-form {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            max-width: 600px;
+        }
+
+        .search-form input, .search-form select {
+            padding: 10px 14px;
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+        }
+        .search-form input { flex: 1; }
+
+        .search-form button {
+            background: #202c33;
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 10px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: 0.2s;
+        }
+        .search-form button:hover {
+            border-color: var(--accent-green);
+        }
+
+        .btn-group-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-main {
+            padding: 10px 18px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: 0.2s;
+            text-decoration: none;
+        }
+
+        .btn-add {
+            background-color: var(--accent-green);
+            color: white;
+        }
+        .btn-add:hover { background-color: var(--accent-green-hover); }
+
+        .btn-excel {
+            background-color: var(--input-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+        .btn-excel:hover { background-color: var(--hover-bg); }
+
+        /* --- Tabla de Colaboradores --- */
+        .table-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: var(--card-shadow);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 14px;
+        }
+
+        th {
+            color: var(--text-secondary);
+            font-size: 12px;
+            text-transform: uppercase;
+            font-weight: 600;
+            background: #0f181e;
+        }
+
+        tr:hover { background-color: var(--hover-bg); }
+
+        .badge-empresa {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge-wiener { background: rgba(0, 168, 132, 0.2); color: #00a884; }
+        .badge-carrion { background: rgba(83, 189, 235, 0.2); color: #53bdeb; }
+
+        .badge-estado {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .estado-activo { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+        .estado-inactivo { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+        .action-btns {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-row-action {
+            padding: 6px 10px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            transition: 0.2s;
+        }
+        .btn-edit { background: var(--input-bg); color: #53bdeb; }
+        .btn-edit:hover { background: #53bdeb; color: white; }
+        .btn-del { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+        .btn-del:hover { background: #ef4444; color: white; }
+
+        /* --- Pagination --- */
+        .pagination-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .pagination-info {
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        .pagination-buttons {
+            display: flex;
+            gap: 6px;
+        }
+
+        .page-btn {
+            padding: 6px 12px;
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .page-btn:hover { background: var(--hover-bg); border-color: var(--accent-green); }
+        .page-btn.active { background: var(--accent-green); color: white; border-color: var(--accent-green); }
+        .page-btn.disabled { opacity: 0.4; pointer-events: none; }
+
+        /* --- Modales --- */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-box {
+            background: #111b21;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            width: 500px;
+            padding: 24px;
+            box-shadow: 0 10px 35px rgba(0,0,0,0.6);
+        }
+        .modal-box h3 { margin: 0 0 18px 0; color: var(--accent-green); font-size: 18px; }
+
+        .modal-form .form-group {
+            margin-bottom: 16px;
+        }
+        .modal-form label {
+            display: block;
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+        .modal-form input, .modal-form select {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 14px;
+            box-sizing: border-box;
+            outline: none;
+        }
+        .modal-form input:focus, .modal-form select:focus {
+            border-color: var(--accent-green);
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .upload-dropzone {
+            border: 2px dashed var(--accent-green);
+            padding: 30px;
+            text-align: center;
+            border-radius: 8px;
+            background: #1a252c;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- TOP GLOBAL NAVBAR -->
+    <header class="top-navbar">
+        <div class="brand-logo">
+            <i class="fa-solid fa-robot"></i>
+            <span>{{ brand.bot_name }}</span>
+        </div>
+        <nav class="nav-tabs">
+            <a href="/dashboard" class="nav-tab">
+                <i class="fa-solid fa-chart-line"></i> Dashboard
+            </a>
+            <a href="/monitor" class="nav-tab">
+                <i class="fa-solid fa-comments"></i> Monitor en Vivo
+            </a>
+            {% if session.get('user_role') in ('admin', 'contabilidad') %}
+            <a href="/admin/comprobantes" class="nav-tab">
+                <i class="fa-solid fa-receipt"></i> Comprobantes{% if pendientes_comprobantes %} <span style="background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700;margin-left:4px;">{{ pendientes_comprobantes }}</span>{% endif %}
+            </a>
+            {% endif %}
+            <a href="/admin/endpoints" class="nav-tab">
+                <i class="fa-solid fa-plug"></i> Endpoints API
+            </a>
+            <a href="/admin/editor" class="nav-tab">
+                <i class="fa-solid fa-pen-to-square"></i> Editor del Bot
+            </a>
+            <a href="/admin/colaboradores" class="nav-tab active">
+                <i class="fa-solid fa-users"></i> Colaboradores
+            </a>
+            <a href="/admin/usuarios" class="nav-tab">
+                <i class="fa-solid fa-user-shield"></i> Usuarios y Perfil
+            </a>
+            <span style="color: #8696a0; font-size: 13px; margin: 0 4px; display: flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-circle-user" style="color: #00a884; font-size: 16px;"></i>
+                <strong style="color: #e9edef;">{{ session.get('username', 'Admin') }}</strong>
+            </span>
+            <a href="/logout" class="nav-tab logout">
+                <i class="fa-solid fa-power-off"></i> Salir
+            </a>
+        </nav>
+    </header>
+
+    <div class="main-container">
+        <!-- Notificaciones Flash -->
+        {% if request.args.get('success_msg') %}
+        <div class="alert-box alert-success">
+            <i class="fa-solid fa-circle-check"></i> {{ request.args.get('success_msg') }}
+        </div>
+        {% endif %}
+        {% if request.args.get('error') %}
+        <div class="alert-box alert-error">
+            <i class="fa-solid fa-triangle-exclamation"></i> {{ request.args.get('error') }}
+        </div>
+        {% endif %}
+
+        <!-- KPI Grid -->
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-info">
+                    <h4>Total Registrados</h4>
+                    <div class="kpi-val">{{ total_colaboradores }}</div>
+                </div>
+                <div class="kpi-icon icon-blue"><i class="fa-solid fa-users"></i></div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-info">
+                    <h4>Empresas / Instituciones</h4>
+                    <div class="kpi-val" style="color: #00a884;">{{ total_empresas }}</div>
+                </div>
+                <div class="kpi-icon icon-green"><i class="fa-solid fa-building"></i></div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-info">
+                    <h4>Usuarios Autenticados</h4>
+                    <div class="kpi-val" style="color: #a855f7;">{{ total_validados }}</div>
+                </div>
+                <div class="kpi-icon icon-purple"><i class="fa-solid fa-shield-check"></i></div>
+            </div>
+        </div>
+
+        <!-- Action & Search Bar -->
+        <div class="action-bar">
+            <form class="search-form" method="GET" action="/admin/colaboradores">
+                <input type="text" name="q" value="{{ q }}" placeholder="Buscar por {{ brand.id_label }}, Nombre o Cargo...">
+                <select name="empresa" onchange="this.form.submit()">
+                    <option value="">Todas las Instituciones</option>
+                    {% for e in empresas %}<option value="{{ e }}" {% if empresa_filtro == e %}selected{% endif %}>{{ e }}</option>{% endfor %}
+                </select>
+                <button type="submit"><i class="fa-solid fa-magnifying-glass"></i> Buscar</button>
+                {% if q or empresa_filtro %}
+                <a href="/admin/colaboradores" class="btn-main btn-excel" style="padding: 10px 14px;" title="Limpiar Filtros"><i class="fa-solid fa-xmark"></i></a>
+                {% endif %}
+            </form>
+            <div class="btn-group-actions">
+                <a href="/admin/colaboradores/plantilla" class="btn-main btn-excel" style="background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;" title="Descargar plantilla oficial con formato de texto para DNI">
+                    <i class="fa-solid fa-file-arrow-down"></i> Descargar Plantilla
+                </a>
+                <button class="btn-main btn-excel" onclick="openExcelModal()">
+                    <i class="fa-solid fa-file-excel"></i> Cargar Excel
+                </button>
+                <button class="btn-main btn-add" onclick="openCreateModal()">
+                    <i class="fa-solid fa-user-plus"></i> Nuevo Colaborador
+                </button>
+            </div>
+        </div>
+
+        <!-- Tabla CRUD -->
+        <div class="table-card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>DNI</th>
+                        <th>Nombre Completo</th>
+                        <th>Institución</th>
+                        <th>Cargo</th>
+                        <th>Estado</th>
+                        <th style="text-align: right;">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in colaboradores_pag.items %}
+                    <tr>
+                        <td style="font-weight: 700; color: #53bdeb;">{{ c.dni }}</td>
+                        <td>{{ c.nombre }}</td>
+                        <td>
+                            <span class="badge-empresa badge-wiener">
+                                {{ c.empresa }}
+                            </span>
+                        </td>
+                        <td>{{ c.cargo or '-' }}</td>
+                        <td>
+                            <span class="badge-estado {% if c.estado == 'Inactivo' or c.estado == 'Cesado' %}estado-inactivo{% else %}estado-activo{% endif %}">
+                                {{ c.estado or 'Activo' }}
+                            </span>
+                        </td>
+                        <td style="text-align: right;">
+                            <div class="action-btns" style="justify-content: flex-end;">
+                                <button class="btn-row-action btn-edit" title="Editar" onclick="openEditModal({{ c.id }}, '{{ c.dni }}', '{{ c.nombre|replace("'", "\\'") }}', '{{ c.empresa }}', '{{ c.cargo|replace("'", "\\'") if c.cargo else '' }}', '{{ c.estado }}')">
+                                    <i class="fa-solid fa-pen"></i>
+                                </button>
+                                <button type="button" class="btn-row-action btn-del" title="Eliminar" onclick="openDeleteModal({{ c.id }}, '{{ c.nombre|replace("'", "\\'") }}', '{{ c.dni }}')">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 30px; color: var(--text-secondary);">
+                            No se encontraron colaboradores que coincidan con la búsqueda.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <!-- Paginación -->
+            <div class="pagination-container">
+                <div class="pagination-info">
+                    Mostrando página {{ colaboradores_pag.page }} de {{ colaboradores_pag.pages or 1 }} (Total: {{ colaboradores_pag.total }} colaboradores)
+                </div>
+                <div class="pagination-buttons">
+                    {% if colaboradores_pag.has_prev %}
+                    <a href="{{ url_for('main.admin_colaboradores', page=colaboradores_pag.prev_num, q=q, empresa=empresa_filtro) }}" class="page-btn">
+                        <i class="fa-solid fa-chevron-left"></i> Anterior
+                    </a>
+                    {% else %}
+                    <span class="page-btn disabled"><i class="fa-solid fa-chevron-left"></i> Anterior</span>
+                    {% endif %}
+
+                    {% if colaboradores_pag.has_next %}
+                    <a href="{{ url_for('main.admin_colaboradores', page=colaboradores_pag.next_num, q=q, empresa=empresa_filtro) }}" class="page-btn">
+                        Siguiente <i class="fa-solid fa-chevron-right"></i>
+                    </a>
+                    {% else %}
+                    <span class="page-btn disabled">Siguiente <i class="fa-solid fa-chevron-right"></i></span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL CREAR / EDITAR COLABORADOR -->
+    <div class="modal-overlay" id="colabModal">
+        <div class="modal-box">
+            <h3 id="modalTitle"><i class="fa-solid fa-user-pen"></i> Registrar Colaborador</h3>
+            <form class="modal-form" method="POST" action="/admin/colaboradores">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="save_individual">
+                <input type="hidden" name="id" id="colabId">
+
+                <div class="form-group">
+                    <label>Número de DNI / CE (8 o 9 dígitos):</label>
+                    <input type="text" name="dni" id="colabDni" required placeholder="Ej. 42643211">
+                </div>
+
+                <div class="form-group">
+                    <label>Nombre Completo:</label>
+                    <input type="text" name="nombre" id="colabNombre" required placeholder="Ej. Juan Pérez">
+                </div>
+
+                <div class="form-group">
+                    <label>Institución / Empresa:</label>
+                    <input type="text" name="empresa" id="colabEmpresa" list="empresasList" maxlength="100" required placeholder="Ej. Mi Empresa S.A.C.">
+                    <datalist id="empresasList">{% for e in empresas %}<option value="{{ e }}">{% endfor %}</datalist>
+                </div>
+
+                <div class="form-group">
+                    <label>Cargo / Puesto:</label>
+                    <input type="text" name="cargo" id="colabCargo" placeholder="Ej. Docente / Coordinador">
+                </div>
+
+                <div class="form-group">
+                    <label>Estado:</label>
+                    <select name="estado" id="colabEstado">
+                        <option value="Activo">Activo</option>
+                        <option value="Cesado">Cesado</option>
+                    </select>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn-main btn-excel" onclick="closeColabModal()">Cancelar</button>
+                    <button type="submit" class="btn-main btn-add">Guardar Colaborador</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL CARGA MASIVA EXCEL -->
+    <div class="modal-overlay" id="excelModal">
+        <div class="modal-box" style="max-width: 520px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+                <h3 style="margin: 0; color: #00a884; display: flex; align-items: center; gap: 10px; font-size: 18px;">
+                    <i class="fa-solid fa-file-excel"></i> Cargar Base de Datos (Excel)
+                </h3>
+                <button type="button" class="btn-main btn-excel" onclick="closeExcelModal()" style="padding: 4px 8px;"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <!-- Callout de plantilla y formato DNI texto -->
+            <div style="background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.28); border-radius: 10px; padding: 14px; margin-bottom: 16px;">
+                <div style="display: flex; align-items: flex-start; gap: 10px;">
+                    <i class="fa-solid fa-circle-info" style="color: #38bdf8; font-size: 16px; margin-top: 2px;"></i>
+                    <div style="font-size: 12.5px; line-height: 1.45; color: #e9edef;">
+                        <strong>Columna DNI con Formato de Texto:</strong><br>
+                        Para evitar que Excel elimine los ceros a la izquierda (ej. <code>07845123</code>), la columna DNI debe tener formato <strong>Texto</strong>. Usa nuestra plantilla oficial preconfigurada:
+                    </div>
+                </div>
+                <div style="margin-top: 10px; text-align: right;">
+                    <a href="/admin/colaboradores/plantilla" class="btn-main" style="background: #38bdf8; color: #0b141a; font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 6px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-download"></i> Descargar Plantilla Oficial (.xlsx)
+                    </a>
+                </div>
+            </div>
+
+            <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 15px;">
+                El archivo debe contener las columnas: <strong>DNI, Nombre, Empresa, Cargo</strong> (opcional: Estado).
+            </p>
+            <form method="POST" action="/admin/colaboradores" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="upload_excel">
+                
+                <div class="upload-dropzone">
+                    <i class="fa-solid fa-cloud-arrow-up" style="font-size: 36px; color: var(--accent-green); margin-bottom: 10px;"></i>
+                    <br>
+                    <input type="file" name="archivo_excel" accept=".xlsx, .xls" required style="color: #e9edef;">
+                </div>
+
+                <div class="modal-actions" style="margin-top: 20px;">
+                    <button type="button" class="btn-main btn-excel" onclick="closeExcelModal()">Cancelar</button>
+                    <button type="submit" class="btn-main btn-add"><i class="fa-solid fa-upload"></i> Subir e Importar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL CONFIRMAR ELIMINACIÓN -->
+    <div class="modal-overlay" id="deleteModal">
+        <div class="modal-box" style="text-align: center; max-width: 440px;">
+            <div style="width: 60px; height: 60px; border-radius: 50%; background: rgba(239, 68, 68, 0.15); color: #ef4444; display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 16px;">
+                <i class="fa-solid fa-trash-can"></i>
+            </div>
+            <h3 style="color: #ef4444; margin: 0 0 10px 0; font-size: 19px;">¿Eliminar Colaborador?</h3>
+            <p style="color: var(--text-primary); font-size: 14px; margin: 0 0 8px 0;" id="deleteColabName">
+                ¿Estás seguro de que deseas eliminar a este colaborador?
+            </p>
+            <p style="color: var(--text-secondary); font-size: 12.5px; margin: 0 0 20px 0;">
+                Esta acción eliminará el registro de la base de datos de {{ brand.bot_name }}. Esta acción no se puede deshacer.
+            </p>
+            <form method="POST" action="/admin/colaboradores">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="delete_individual">
+                <input type="hidden" name="id" id="deleteColabId">
+                <div style="display: flex; gap: 10px; justify-content: center;">
+                    <button type="button" class="btn-main btn-excel" onclick="closeDeleteModal()" style="flex: 1; justify-content: center;">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="btn-main btn-del" style="flex: 1; justify-content: center; background: #ef4444; color: white;">
+                        <i class="fa-solid fa-trash"></i> Sí, Eliminar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openCreateModal() {
+            document.getElementById('modalTitle').innerHTML = '<i class="fa-solid fa-user-plus"></i> Nuevo Colaborador';
+            document.getElementById('colabId').value = '';
+            document.getElementById('colabDni').value = '';
+            document.getElementById('colabNombre').value = '';
+            document.getElementById('colabEmpresa').value = '';
+            document.getElementById('colabCargo').value = '';
+            document.getElementById('colabEstado').value = 'Activo';
+            document.getElementById('colabModal').style.display = 'flex';
+        }
+
+        function openEditModal(id, dni, nombre, empresa, cargo, estado) {
+            document.getElementById('modalTitle').innerHTML = '<i class="fa-solid fa-user-pen"></i> Editar Colaborador';
+            document.getElementById('colabId').value = id;
+            document.getElementById('colabDni').value = dni;
+            document.getElementById('colabNombre').value = nombre;
+            
+            document.getElementById('colabEmpresa').value = empresa || '';
+
+            document.getElementById('colabCargo').value = cargo || '';
+            document.getElementById('colabEstado').value = estado || 'Activo';
+            document.getElementById('colabModal').style.display = 'flex';
+        }
+
+        function closeColabModal() {
+            document.getElementById('colabModal').style.display = 'none';
+        }
+
+        function openExcelModal() {
+            document.getElementById('excelModal').style.display = 'flex';
+        }
+        function closeExcelModal() {
+            document.getElementById('excelModal').style.display = 'none';
+        }
+
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function openDeleteModal(id, nombre, dni) {
+            document.getElementById('deleteColabId').value = id;
+            document.getElementById('deleteColabName').innerHTML = `¿Estás seguro de que deseas eliminar permanentemente a <strong>${escapeHtml(nombre)}</strong> (DNI: <strong>${escapeHtml(dni)}</strong>)?`;
+            document.getElementById('deleteModal').style.display = 'flex';
+        }
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

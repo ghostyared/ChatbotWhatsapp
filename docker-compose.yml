@@ -1,0 +1,39 @@
+# ============================================================
+# QA_CHATBOT — app (Flask/Gunicorn). La BD vive en OTRO contenedor (PROD_PostgreSQL).
+# Ruta de despliegue: /Proyectos_Dockers/deployments/QA_CHATBOT
+# Toda la configuración sale del archivo .env (ver .env.example)
+#
+# Red: todo en la red externa "proxy-net" (ya existente), donde están nginx y PostgreSQL.
+#   nginx  -> proxy_pass http://qa_chatbot:5005;      (ver docs/QA_ChatBot.conf)
+#   app    -> DB_HOST=<nombre del contenedor de PostgreSQL>  (en .env)
+# ============================================================
+services:
+  app:
+    build: .
+    image: qa-chatbot:latest
+    container_name: qa_chatbot
+    restart: always
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${APP_MEM_LIMIT:-512m}
+    cpus: ${APP_CPUS:-1.5}
+    env_file: .env
+    environment:
+      - TZ=${APP_TIMEZONE:-America/Lima}
+    volumes:
+      - botdata:/app/data          # comprobantes de pago recibidos (respaldar con scripts/backup.sh)
+    # Sin "ports": solo nginx (misma red) llega a la app; no se publica nada en el host.
+    networks:
+      proxy-net:
+        aliases: [qa_chatbot, chatbot-whatsapp]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  botdata:
+
+networks:
+  proxy-net:
+    external: true

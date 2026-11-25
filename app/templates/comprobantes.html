@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ brand.bot_name }} | Comprobantes de pago</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-dark: #0b141a;
+            --card-bg: #111b21;
+            --header-bg: #202c33;
+            --input-bg: #2a3942;
+            --accent-green: #00a884;
+            --accent-green-hover: #06cf9c;
+            --text-primary: #e9edef;
+            --text-secondary: #8696a0;
+            --border-color: #2f3b44;
+            --hover-bg: #222e35;
+            --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* --- Top Global Navbar --- */
+        .top-navbar {
+            background-color: var(--header-bg);
+            height: 60px;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 30px;
+            border-bottom: 1px solid var(--border-color);
+            box-sizing: border-box;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .brand-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 19px;
+            font-weight: 700;
+            color: var(--accent-green);
+        }
+
+        .brand-logo i { font-size: 24px; }
+
+        .nav-tabs {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-tab {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 9px 18px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .nav-tab:hover {
+            background-color: var(--hover-bg);
+            color: var(--text-primary);
+        }
+
+        .nav-tab.active {
+            background-color: #005c4b;
+            color: #ffffff;
+        }
+
+        .nav-tab.logout { color: #ef4444; }
+        .nav-tab.logout:hover { background-color: rgba(239, 68, 68, 0.15); }
+
+        /* --- Main Container --- */
+        .main-container {
+            max-width: 1300px;
+            width: 92%;
+            margin: 30px auto;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        /* --- Alerts --- */
+        .alert-box {
+            padding: 14px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .alert-success {
+            background: rgba(0, 168, 132, 0.15);
+            border: 1px solid var(--accent-green);
+            color: #00a884;
+        }
+        .alert-error {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid #ef4444;
+            color: #ef4444;
+        }
+
+        /* --- KPI Grid --- */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+        }
+
+        .kpi-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 20px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: var(--card-shadow);
+        }
+
+        .kpi-info h4 {
+            margin: 0;
+            font-size: 13px;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+        }
+
+        .kpi-info .kpi-val {
+            font-size: 26px;
+            font-weight: 700;
+            margin: 6px 0 0 0;
+            color: var(--text-primary);
+        }
+
+        .kpi-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+        }
+        .icon-blue { background: rgba(83, 189, 235, 0.15); color: #53bdeb; }
+        .icon-green { background: rgba(0, 168, 132, 0.15); color: #00a884; }
+        .icon-purple { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
+
+        /* --- Action & Search Bar --- */
+        .action-bar {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            box-shadow: var(--card-shadow);
+        }
+
+        .search-form {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            max-width: 600px;
+        }
+
+        .search-form input, .search-form select {
+            padding: 10px 14px;
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+        }
+        .search-form input { flex: 1; }
+
+        .search-form button {
+            background: #202c33;
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 10px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: 0.2s;
+        }
+        .search-form button:hover {
+            border-color: var(--accent-green);
+        }
+
+        .btn-group-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-main {
+            padding: 10px 18px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: 0.2s;
+            text-decoration: none;
+        }
+
+        .btn-add {
+            background-color: var(--accent-green);
+            color: white;
+        }
+        .btn-add:hover { background-color: var(--accent-green-hover); }
+
+        .btn-excel {
+            background-color: var(--input-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+        .btn-excel:hover { background-color: var(--hover-bg); }
+
+        /* --- Tabla de Colaboradores --- */
+        .table-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: var(--card-shadow);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 14px;
+        }
+
+        th {
+            color: var(--text-secondary);
+            font-size: 12px;
+            text-transform: uppercase;
+            font-weight: 600;
+            background: #0f181e;
+        }
+
+        tr:hover { background-color: var(--hover-bg); }
+
+        .badge-empresa {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge-wiener { background: rgba(0, 168, 132, 0.2); color: #00a884; }
+        .badge-carrion { background: rgba(83, 189, 235, 0.2); color: #53bdeb; }
+
+        .badge-estado {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .estado-activo { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+        .estado-inactivo { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+        .action-btns {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-row-action {
+            padding: 6px 10px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            transition: 0.2s;
+        }
+        .btn-edit { background: var(--input-bg); color: #53bdeb; }
+        .btn-edit:hover { background: #53bdeb; color: white; }
+        .btn-del { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+        .btn-del:hover { background: #ef4444; color: white; }
+
+        /* --- Pagination --- */
+        .pagination-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .pagination-info {
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        .pagination-buttons {
+            display: flex;
+            gap: 6px;
+        }
+
+        .page-btn {
+            padding: 6px 12px;
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .page-btn:hover { background: var(--hover-bg); border-color: var(--accent-green); }
+        .page-btn.active { background: var(--accent-green); color: white; border-color: var(--accent-green); }
+        .page-btn.disabled { opacity: 0.4; pointer-events: none; }
+
+        /* --- Modales --- */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-box {
+            background: #111b21;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            width: 500px;
+            padding: 24px;
+            box-shadow: 0 10px 35px rgba(0,0,0,0.6);
+        }
+        .modal-box h3 { margin: 0 0 18px 0; color: var(--accent-green); font-size: 18px; }
+
+        .modal-form .form-group {
+            margin-bottom: 16px;
+        }
+        .modal-form label {
+            display: block;
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+        .modal-form input, .modal-form select {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 14px;
+            box-sizing: border-box;
+            outline: none;
+        }
+        .modal-form input:focus, .modal-form select:focus {
+            border-color: var(--accent-green);
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .upload-dropzone {
+            border: 2px dashed var(--accent-green);
+            padding: 30px;
+            text-align: center;
+            border-radius: 8px;
+            background: #1a252c;
+            margin-bottom: 15px;
+        }
+    
+        .estado-pendiente { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+        .estado-aprobado { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+        .estado-rechazado { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+        .tabs-estado { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+        .tab-estado { padding: 8px 16px; border-radius: 20px; border: 1px solid #2f3b44; color: #8696a0; text-decoration: none; font-size: 13px; font-weight: 600; }
+        .tab-estado.active { background: #00a884; border-color: #00a884; color: #fff; }
+        .rev-form { display: inline-flex; gap: 6px; align-items: center; margin: 2px 0; }
+        .rev-form input[type=text] { background: #202c33; border: 1px solid #2f3b44; color: #e9edef; border-radius: 8px; padding: 6px 10px; font-size: 12px; width: 170px; }
+        .btn-ok { background: rgba(34,197,94,.18); color: #22c55e; border: 1px solid rgba(34,197,94,.4); border-radius: 8px; padding: 6px 12px; cursor: pointer; font-weight: 700; font-size: 12px; }
+        .btn-no { background: rgba(239,68,68,.15); color: #ef4444; border: 1px solid rgba(239,68,68,.4); border-radius: 8px; padding: 6px 12px; cursor: pointer; font-weight: 700; font-size: 12px; }
+        .dup-flag { background: rgba(245,158,11,.18); color: #f59e0b; border-radius: 6px; padding: 2px 7px; font-size: 11px; font-weight: 700; margin-left: 6px; }
+    </style>
+</head>
+<body>
+
+    <header class="top-navbar">
+        <div class="brand-logo">
+            <i class="fa-solid fa-robot"></i>
+            <span>{{ brand.bot_name }}</span>
+        </div>
+        <nav class="nav-tabs">
+            {% if session.get('user_role') == 'admin' %}
+            <a href="/dashboard" class="nav-tab"><i class="fa-solid fa-chart-line"></i> Dashboard</a>
+            <a href="/monitor" class="nav-tab"><i class="fa-solid fa-comments"></i> Monitor en Vivo</a>
+            {% endif %}
+            <a href="/admin/comprobantes" class="nav-tab active"><i class="fa-solid fa-receipt"></i> Comprobantes</a>
+            {% if session.get('user_role') == 'admin' %}
+            <a href="/admin/leads" class="nav-tab"><i class="fa-solid fa-bullhorn"></i> Interesados</a>
+            <a href="/admin/ia" class="nav-tab"><i class="fa-solid fa-wand-magic-sparkles"></i> Asistente IA</a>
+            <a href="/admin/endpoints" class="nav-tab"><i class="fa-solid fa-plug"></i> Endpoints API</a>
+            <a href="/admin/editor" class="nav-tab"><i class="fa-solid fa-pen-to-square"></i> Editor del Bot</a>
+            <a href="/admin/colaboradores" class="nav-tab"><i class="fa-solid fa-users"></i> Colaboradores</a>
+            <a href="/admin/usuarios" class="nav-tab"><i class="fa-solid fa-user-shield"></i> Usuarios y Perfil</a>
+            {% endif %}
+            <span style="color: #8696a0; font-size: 13px; margin: 0 4px; display: flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-circle-user" style="color: #00a884; font-size: 16px;"></i>
+                <strong style="color: #e9edef;">{{ session.get('username', 'Usuario') }}</strong>
+            </span>
+            <a href="/logout" class="nav-tab logout"><i class="fa-solid fa-power-off"></i> Salir</a>
+        </nav>
+    </header>
+
+    <div class="main-container">
+        {% with mensajes = get_flashed_messages(with_categories=true) %}
+        {% for cat, msg in mensajes %}
+        <div class="alert-box {{ 'alert-success' if cat in ('success', 'info') else 'alert-error' }}">
+            <i class="fa-solid fa-circle-info"></i> {{ msg }}
+        </div>
+        {% endfor %}
+        {% endwith %}
+
+        <div class="kpi-grid">
+            <div class="kpi-card"><div class="kpi-info"><h4>Pendientes de revisión</h4>
+                <div class="kpi-val" style="color:#f59e0b;">{{ pendientes }}</div></div>
+                <div class="kpi-icon icon-purple"><i class="fa-solid fa-hourglass-half"></i></div></div>
+            <div class="kpi-card"><div class="kpi-info"><h4>Aprobados</h4>
+                <div class="kpi-val" style="color:#22c55e;">{{ aprobados }}</div></div>
+                <div class="kpi-icon icon-green"><i class="fa-solid fa-circle-check"></i></div></div>
+            <div class="kpi-card"><div class="kpi-info"><h4>Rechazados</h4>
+                <div class="kpi-val" style="color:#ef4444;">{{ rechazados }}</div></div>
+                <div class="kpi-icon icon-blue"><i class="fa-solid fa-circle-xmark"></i></div></div>
+        </div>
+
+        <div class="tabs-estado">
+            <a class="tab-estado {% if estado == 'pendiente' %}active{% endif %}" href="{{ url_for('main.comprobantes', estado='pendiente', q=q) }}">⏳ Pendientes</a>
+            <a class="tab-estado {% if estado == 'aprobado' %}active{% endif %}" href="{{ url_for('main.comprobantes', estado='aprobado', q=q) }}">✅ Aprobados</a>
+            <a class="tab-estado {% if estado == 'rechazado' %}active{% endif %}" href="{{ url_for('main.comprobantes', estado='rechazado', q=q) }}">❌ Rechazados</a>
+            <a class="tab-estado {% if estado == 'todos' %}active{% endif %}" href="{{ url_for('main.comprobantes', estado='todos', q=q) }}">Todos</a>
+        </div>
+
+        <div class="action-bar">
+            <form class="search-form" method="GET" action="/admin/comprobantes">
+                <input type="hidden" name="estado" value="{{ estado }}">
+                <input type="text" name="q" value="{{ q }}" placeholder="Buscar por DNI, teléfono o nota...">
+                <button type="submit"><i class="fa-solid fa-magnifying-glass"></i> Buscar</button>
+            </form>
+        </div>
+
+        <div class="table-card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Código</th><th>Recibido</th><th>Remitente</th><th>DNI estudiante</th>
+                        <th>Nota</th><th>Archivo</th><th>Estado</th><th>Revisión</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in pag.items %}
+                    <tr>
+                        <td style="font-weight:700;color:#53bdeb;">{{ c.codigo }}</td>
+                        <td>{{ c.creado_en|localtime }}</td>
+                        <td>{{ c.nombre_wa or '-' }}<br><small style="color:#8696a0;">📞 {{ c.telefono }}</small></td>
+                        <td style="font-weight:700;">{{ c.dni_estudiante }}</td>
+                        <td>{{ c.nota or '-' }}</td>
+                        <td>
+                            <a href="{{ url_for('main.comprobante_archivo', cid=c.id) }}" target="_blank" rel="noopener" style="color:#00a884;font-weight:700;">
+                                <i class="fa-solid fa-file-image"></i> Ver ({{ (c.tamano / 1024)|round|int }} KB)
+                            </a>
+                            {% if c.duplicado %}<span class="dup-flag" title="Este mismo archivo ya se recibió antes">DUPLICADO</span>{% endif %}
+                        </td>
+                        <td><span class="badge-estado estado-{{ c.estado }}">{{ c.estado|capitalize }}</span></td>
+                        <td>
+                            {% if c.estado == 'pendiente' %}
+                            <form class="rev-form" method="POST" action="{{ url_for('main.comprobante_revisar', cid=c.id) }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+                                <input type="hidden" name="accion" value="aprobar">
+                                <button class="btn-ok" type="submit">✔ Aprobar</button>
+                            </form><br>
+                            <form class="rev-form" method="POST" action="{{ url_for('main.comprobante_revisar', cid=c.id) }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+                                <input type="hidden" name="accion" value="rechazar">
+                                <input type="text" name="motivo" maxlength="300" placeholder="Motivo del rechazo" required>
+                                <button class="btn-no" type="submit">✖ Rechazar</button>
+                            </form>
+                            {% else %}
+                            <small style="color:#8696a0;">por <strong>{{ c.revisado_por }}</strong><br>{{ c.revisado_en|localtime }}{% if c.motivo %}<br>«{{ c.motivo }}»{% endif %}</small>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-secondary);">No hay comprobantes en esta vista.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <div class="pagination-container">
+                <div class="pagination-info">Página {{ pag.page }} de {{ pag.pages or 1 }} (Total: {{ pag.total }})</div>
+                <div class="pagination-buttons">
+                    {% if pag.has_prev %}<a href="{{ url_for('main.comprobantes', page=pag.prev_num, estado=estado, q=q) }}" class="page-btn"><i class="fa-solid fa-chevron-left"></i> Anterior</a>
+                    {% else %}<span class="page-btn disabled"><i class="fa-solid fa-chevron-left"></i> Anterior</span>{% endif %}
+                    {% if pag.has_next %}<a href="{{ url_for('main.comprobantes', page=pag.next_num, estado=estado, q=q) }}" class="page-btn">Siguiente <i class="fa-solid fa-chevron-right"></i></a>
+                    {% else %}<span class="page-btn disabled">Siguiente <i class="fa-solid fa-chevron-right"></i></span>{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

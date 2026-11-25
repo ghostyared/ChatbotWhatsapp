@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ brand.bot_name }} | Monitor de conversaciones</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-dark: #0b141a;
+            --sidebar-bg: #111b21;
+            --header-bg: #202c33;
+            --chat-bg: #0b141a;
+            --incoming-msg: #202c33;
+            --outgoing-msg: #005c4b;
+            --text-primary: #e9edef;
+            --text-secondary: #8696a0;
+            --accent-green: #00a884;
+            --border-color: #2f3b44;
+            --hover-bg: #2a3942;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Helvetica, Arial, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* --- Top Global Navbar --- */
+        .top-navbar {
+            background-color: var(--header-bg);
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+            z-index: 1000;
+        }
+
+        .brand-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--accent-green);
+        }
+
+        .brand-logo i {
+            font-size: 22px;
+        }
+
+        .nav-tabs {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-tab {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .nav-tab:hover {
+            background-color: var(--hover-bg);
+            color: var(--text-primary);
+        }
+
+        .nav-tab.active {
+            background-color: #005c4b;
+            color: #ffffff;
+        }
+
+        .nav-tab.logout {
+            color: #ef4444;
+        }
+        .nav-tab.logout:hover {
+            background-color: rgba(239, 68, 68, 0.15);
+        }
+
+        /* --- Main App Container --- */
+        .app-container {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 56px);
+            overflow: hidden;
+        }
+
+        /* --- Sidebar (Lista de Chats) --- */
+        .sidebar {
+            width: 30%;
+            min-width: 300px;
+            background-color: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            background-color: var(--header-bg);
+            padding: 10px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 60px;
+            box-sizing: border-box;
+        }
+
+        .sidebar-header h2 {
+            font-size: 18px;
+            margin: 0;
+            color: var(--accent-green);
+        }
+
+        .search-container {
+            padding: 10px;
+            background-color: var(--sidebar-bg);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .search-container input {
+            width: 100%;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: none;
+            background-color: var(--header-bg);
+            color: var(--text-primary);
+            box-sizing: border-box;
+            outline: none;
+        }
+
+        .chat-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .chat-item {
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #222e35;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .chat-item:hover { background-color: var(--hover-bg); }
+        .chat-item.active { background-color: var(--hover-bg); }
+
+        .chat-item i {
+            font-size: 45px;
+            margin-right: 15px;
+            color: var(--text-secondary);
+        }
+
+        .chat-info { flex: 1; min-width: 0; }
+        
+        .chat-info-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 4px;
+        }
+
+        .chat-info strong {
+            font-size: 16px;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .chat-info .last-time {
+            font-size: 12px;
+            color: var(--text-secondary);
+            flex-shrink: 0;
+        }
+
+        .chat-info small {
+            color: var(--text-secondary);
+            font-size: 14px;
+            display: block;
+        }
+
+        /* --- Área de Chat (Contenido) --- */
+        .main-chat {
+            width: 70%;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--chat-bg);
+            background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
+            background-blend-mode: overlay;
+            background-attachment: fixed;
+        }
+
+        .chat-header {
+            background-color: var(--header-bg);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 60px;
+            border-bottom: 1px solid var(--border-color);
+            box-sizing: border-box;
+            z-index: 100;
+        }
+
+        .user-active { display: flex; align-items: center; }
+        .user-active h3 { margin: 0; font-size: 16px; }
+
+        .nav-links a {
+            color: var(--accent-green);
+            text-decoration: none;
+            margin-left: 20px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .nav-links .logout { color: #ef4444; }
+
+        /* --- Mensajes --- */
+        .msg-container {
+            flex: 1;
+            padding: 20px 10%;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .bubble {
+            padding: 8px 12px;
+            margin: 4px 0;
+            border-radius: 8px;
+            max-width: 65%;
+            font-size: 14.5px;
+            line-height: 1.4;
+            position: relative;
+            box-shadow: 0 1px 0.5px rgba(0,0,0,0.13);
+            word-wrap: break-word;
+        }
+
+        .ENTRADA {
+            background-color: var(--incoming-msg);
+            color: var(--text-primary);
+            align-self: flex-start;
+            border-top-left-radius: 0;
+        }
+
+        .SALIDA {
+            background-color: var(--outgoing-msg);
+            color: var(--text-primary);
+            align-self: flex-end;
+            border-top-right-radius: 0;
+        }
+
+        .sender {
+            display: block;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .ENTRADA .sender { color: #53bdeb; }
+        .SALIDA .sender { color: #8696a0; }
+
+        .time-msg {
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-align: right;
+            margin-top: 4px;
+            display: block;
+        }
+
+        /* --- Scrollbar --- */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #374045; }
+        ::-webkit-scrollbar-track { background: transparent; }
+
+    </style>
+</head>
+<body>
+
+    <!-- TOP GLOBAL NAVBAR -->
+    <header class="top-navbar">
+        <div class="brand-logo">
+            <i class="fa-solid fa-robot"></i>
+            <span>{{ brand.bot_name }}</span>
+        </div>
+        <nav class="nav-tabs">
+            {% if session.get('user_role') == 'admin' %}
+            <a href="/dashboard" class="nav-tab">
+                <i class="fa-solid fa-chart-line"></i> Dashboard
+            </a>
+            {% endif %}
+            <a href="/monitor" class="nav-tab active">
+                <i class="fa-solid fa-comments"></i> Monitor en Vivo
+            </a>
+            {% if session.get('user_role') in ('admin', 'callcenter') %}
+            <a href="/admin/leads" class="nav-tab">
+                <i class="fa-solid fa-headset"></i> CRM / Call Center
+            </a>
+            {% endif %}
+            {% if session.get('user_role') in ('admin', 'contabilidad') %}
+            <a href="/admin/comprobantes" class="nav-tab">
+                <i class="fa-solid fa-receipt"></i> Comprobantes{% if pendientes_comprobantes %} <span style="background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700;margin-left:4px;">{{ pendientes_comprobantes }}</span>{% endif %}
+            </a>
+            {% endif %}
+            {% if session.get('user_role') == 'admin' %}
+            <a href="/admin/endpoints" class="nav-tab">
+                <i class="fa-solid fa-plug"></i> Endpoints API
+            </a>
+            <a href="/admin/editor" class="nav-tab">
+                <i class="fa-solid fa-pen-to-square"></i> Editor del Bot
+            </a>
+            <a href="/admin/colaboradores" class="nav-tab">
+                <i class="fa-solid fa-users"></i> Colaboradores
+            </a>
+            <a href="/admin/usuarios" class="nav-tab">
+                <i class="fa-solid fa-user-shield"></i> Usuarios y Perfil
+            </a>
+            {% endif %}
+            <span style="color: #8696a0; font-size: 13px; margin: 0 4px; display: flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-circle-user" style="color: {% if session.get('user_role') == 'admin' %}#00a884{% else %}#38bdf8{% endif %}; font-size: 16px;"></i>
+                <strong style="color: #e9edef;">{{ session.get('username', 'Usuario') }}</strong>
+                <small style="background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; font-size: 11px;">
+                    {% if session.get('user_role') == 'admin' %}Admin{% elif session.get('user_role') == 'callcenter' %}Call Center{% else %}Lector{% endif %}
+                </small>
+            </span>
+            <a href="/logout" class="nav-tab logout">
+                <i class="fa-solid fa-power-off"></i> Salir
+            </a>
+        </nav>
+    </header>
+
+    <div class="app-container">
+        <!-- SIDEBAR: Lista de Personas -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>Conversaciones Recientes</h2>
+                <i class="fa-solid fa-users-viewfinder" style="color: var(--text-secondary);"></i>
+            </div>
+            
+            <div class="search-container">
+                <input type="text" id="searchInput" placeholder="Buscar contacto o teléfono..." onkeyup="filterContacts()">
+            </div>
+        
+        <div class="chat-list" id="chatListContainer">
+            {% for tel, nom, ultima_fecha in contactos %}
+            <div class="chat-item {% if tel == tel_activo %}active{% endif %}" onclick="location.href='/monitor/{{tel}}'">
+                <i class="fa-solid fa-circle-user"></i>
+                <div class="chat-info">
+                    <div class="chat-info-top">
+                        <strong>{{ nom or tel }}</strong>
+                        <span class="last-time">{{ ultima_fecha|localtime('%H:%M') }}</span>
+                    </div>
+                    <small>📞 {{ tel }}</small>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- MAIN: Conversación activa -->
+    <div class="main-chat">
+        {% if tel_activo %}
+        <div class="chat-header">
+            <div class="user-active">
+                <i class="fa-solid fa-circle-user" style="font-size: 30px; margin-right: 15px; color: var(--text-secondary);"></i>
+                <h3>{{ tel_activo }}</h3>
+                <button id="toggleBotBtn" onclick="toggleBot()" style="margin-left: 20px; padding: 5px 15px; font-size: 12px; background: #333; color: white; border-radius: 5px; cursor: pointer; border: 1px solid #555;">
+                    <i class="fa-solid fa-robot"></i> <span id="botStatusText">Bot Activo</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="msg-container" id="chatBox">
+            {% for m in mensajes %}
+            <div class="bubble {{ m.direccion }}">
+                <span class="sender">
+                    {{ m.nombre if m.direccion == 'ENTRADA' else brand.bot_sender }}
+                </span>
+                <div>{{ m.contenido }}</div>
+                <span class="time-msg">{{ m.fecha|localtime('%H:%M') }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="chat-input-container" style="padding: 15px 20px; background: var(--header-bg); display: flex; align-items: center; border-top: 1px solid var(--border-color);">
+            <input type="text" id="chatInput" placeholder="Escribe un mensaje al colaborador..." style="flex: 1; padding: 12px; border-radius: 20px; border: none; background: var(--input-bg); color: white; outline: none; margin-right: 15px;" onkeypress="if(event.key === 'Enter') sendMessage()">
+            <button onclick="sendMessage()" style="background: var(--accent-green); color: white; border: none; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px;">
+                <i class="fa-solid fa-paper-plane"></i>
+            </button>
+        </div>
+        {% else %}
+        <!-- Estado inicial cuando no hay chat seleccionado -->
+        <div style="display:flex; justify-content:center; align-items:center; height:100%; flex-direction:column; color: var(--text-secondary);">
+            <i class="fa-brands fa-whatsapp" style="font-size: 120px; opacity: 0.1; margin-bottom: 20px;"></i>
+            <h3>Monitor de Conversaciones {{ brand.bot_name }}</h3>
+            <p>Selecciona un colaborador a la izquierda para ver su historial o interactuar en modo manual.</p>
+        </div>
+        {% endif %}
+    </div>
+    </div> <!-- /app-container -->
+
+    <script>
+        const CSRF = document.querySelector('meta[name=csrf-token]').content;
+        const telActivo = "{{ tel_activo if tel_activo else 'none' }}";
+        const chatBox = document.getElementById('chatBox');
+        let lastMessageCount = {{ mensajes|length if mensajes else 0 }};
+
+        // Scroll to bottom on load
+        if (chatBox) {
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function filterContacts() {
+            const input = document.getElementById('searchInput').value.toLowerCase();
+            const items = document.querySelectorAll('.chat-item');
+            items.forEach(item => {
+                const text = item.innerText.toLowerCase();
+                if (text.includes(input)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        async function fetchUpdates() {
+            try {
+                const response = await fetch('/api/chat_updates/' + encodeURIComponent(telActivo));
+                if (!response.ok) return;
+                const data = await response.json();
+                
+                // Update Sidebar Contacts
+                const chatList = document.getElementById('chatListContainer');
+                let newSidebarHtml = '';
+                data.contactos.forEach(c => {
+                    const activeClass = (c.tel === telActivo) ? 'active' : '';
+                    const safeTel = escapeHtml(c.tel);
+                    newSidebarHtml += `
+                        <div class="chat-item ${activeClass}" onclick="location.href='/monitor/${encodeURIComponent(c.tel)}'">
+                            <i class="fa-solid fa-circle-user"></i>
+                            <div class="chat-info">
+                                <div class="chat-info-top">
+                                    <strong>${escapeHtml(c.nom)}</strong>
+                                    <span class="last-time">${escapeHtml(c.ultima_fecha)}</span>
+                                </div>
+                                <small>📞 ${safeTel}</small>
+                            </div>
+                        </div>`;
+                });
+                
+                // Only replace if content changed (to avoid losing search filter constantly)
+                if (document.getElementById('searchInput').value === '') {
+                    chatList.innerHTML = newSidebarHtml;
+                }
+
+                // Update Chat Messages
+                if (telActivo !== 'none') {
+                    // Update bot status
+                    updateBotStatusBtn(data.bot_pausado);
+
+                    if (chatBox && data.mensajes.length > lastMessageCount) {
+                        let newChatHtml = '';
+                        data.mensajes.forEach(m => {
+                            const senderName = m.direccion === 'ENTRADA' ? m.nombre : {{ brand.bot_sender|tojson }};
+                            const safeDir = m.direccion === 'ENTRADA' ? 'ENTRADA' : 'SALIDA';
+                            newChatHtml += `
+                                <div class="bubble ${safeDir}">
+                                    <span class="sender">${escapeHtml(senderName)}</span>
+                                    <div>${escapeHtml(m.contenido)}</div>
+                                    <span class="time-msg">${escapeHtml(m.fecha)}</span>
+                                </div>`;
+                        });
+                        chatBox.innerHTML = newChatHtml;
+                        chatBox.scrollTop = chatBox.scrollHeight;
+                        lastMessageCount = data.mensajes.length;
+                    }
+                }
+
+            } catch (error) {
+                console.error("Error fetching updates", error);
+            }
+        }
+
+        // Poll every 5 seconds without reloading
+        setInterval(fetchUpdates, 5000);
+
+        async function toggleBot() {
+            if (telActivo === 'none') return;
+            try {
+                const response = await fetch('/api/toggle_bot/' + encodeURIComponent(telActivo), { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
+                const data = await response.json();
+                if (data.status === 'success') {
+                    updateBotStatusBtn(data.bot_pausado);
+                }
+            } catch (error) {
+                console.error("Error toggling bot", error);
+            }
+        }
+        
+        function updateBotStatusBtn(isPaused) {
+            const btn = document.getElementById('toggleBotBtn');
+            const txt = document.getElementById('botStatusText');
+            if (!btn || !txt) return;
+            if (isPaused) {
+                btn.style.background = '#ef4444';
+                txt.innerText = 'Bot Pausado (Modo Manual)';
+            } else {
+                btn.style.background = '#333';
+                txt.innerText = 'Bot Activo';
+            }
+        }
+
+        async function sendMessage() {
+            if (telActivo === 'none') return;
+            const input = document.getElementById('chatInput');
+            const msg = input.value.trim();
+            if (!msg) return;
+
+            input.value = ''; // clear input
+            
+            // Optimistic UI update
+            const chatBox = document.getElementById('chatBox');
+            const timeNow = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            chatBox.innerHTML += `
+                <div class="bubble SALIDA">
+                    <span class="sender">Agente (Tú)</span>
+                    <div>${escapeHtml(msg)}</div>
+                    <span class="time-msg">${escapeHtml(timeNow)}</span>
+                </div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
+            lastMessageCount++; // prevent fetch updates from clearing it instantly if db lags
+
+            try {
+                const resp = await fetch('/api/send_message/' + telActivo, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    body: JSON.stringify({ mensaje: msg })
+                });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    alert(err.error || 'No se pudo enviar el mensaje');
+                }
+                fetchUpdates(); // Force refresh to sync
+            } catch (error) {
+                console.error("Error sending message", error);
+            }
+        }
+    </script>
+</body>
+</html>

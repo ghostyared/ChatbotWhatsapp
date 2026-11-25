@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ brand.bot_name }} | Endpoints API</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-dark: #0b141a;
+            --card-bg: #111b21;
+            --header-bg: #202c33;
+            --input-bg: #2a3942;
+            --accent-green: #00a884;
+            --accent-green-hover: #06cf9c;
+            --text-primary: #e9edef;
+            --text-secondary: #8696a0;
+            --border-color: #2f3b44;
+            --hover-bg: #222e35;
+            --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .top-navbar {
+            background-color: var(--header-bg);
+            min-height: 60px;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 24px;
+            border-bottom: 1px solid var(--border-color);
+            box-sizing: border-box;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .brand-logo { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; color: var(--accent-green); }
+        .brand-logo i { font-size: 22px; }
+        .nav-tabs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .nav-tab {
+            color: var(--text-secondary); text-decoration: none; padding: 8px 13px; border-radius: 6px;
+            font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 7px; transition: all 0.2s ease;
+        }
+        .nav-tab:hover { background-color: var(--hover-bg); color: var(--text-primary); }
+        .nav-tab.active { background-color: #005c4b; color: #ffffff; }
+        .nav-tab.logout { color: #ef4444; }
+        .nav-tab.logout:hover { background-color: rgba(239, 68, 68, 0.15); }
+
+        .main-container {
+            max-width: 1320px; width: 93%; margin: 26px auto;
+            display: flex; flex-direction: column; gap: 20px;
+        }
+
+        .alert-box { padding: 13px 18px; border-radius: 8px; font-size: 14px; display: flex; align-items: center; gap: 10px; }
+        .alert-success { background: rgba(0, 168, 132, 0.15); border: 1px solid var(--accent-green); color: #00a884; }
+        .alert-error { background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; color: #ef4444; }
+
+        .header-bar {
+            background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px;
+            padding: 20px 24px; display: flex; justify-content: space-between; align-items: center;
+            flex-wrap: wrap; gap: 14px; box-shadow: var(--card-shadow);
+        }
+        .header-bar h2 { margin: 0 0 4px; color: var(--accent-green); font-size: 21px; }
+        .header-bar p { margin: 0; color: var(--text-secondary); font-size: 13px; }
+
+        .btn-main {
+            padding: 10px 18px; border-radius: 7px; font-size: 13.5px; font-weight: 600; cursor: pointer;
+            border: none; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; text-decoration: none;
+        }
+        .btn-primary { background: var(--accent-green); color: #fff; }
+        .btn-primary:hover { background: var(--accent-green-hover); }
+        .btn-sec { background: var(--input-bg); color: var(--text-primary); border: 1px solid var(--border-color); }
+        .btn-sec:hover { border-color: var(--accent-green); }
+
+        .vars-banner {
+            background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px;
+            padding: 14px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+        }
+        .vars-banner small { color: var(--text-secondary); font-size: 12.5px; font-weight: 600; }
+        .var-pill {
+            background: rgba(83, 189, 235, 0.14); color: #53bdeb; border: 1px solid rgba(83, 189, 235, 0.35);
+            padding: 3px 9px; border-radius: 6px; font-family: 'Consolas', monospace; font-size: 12px; font-weight: 700;
+            cursor: default;
+        }
+        .var-btn {
+            background: rgba(0, 168, 132, 0.14); color: #06cf9c; border: 1px solid rgba(0, 168, 132, 0.35);
+            padding: 4px 9px; border-radius: 6px; font-family: 'Consolas', monospace; font-size: 12px; font-weight: 700;
+            cursor: pointer; transition: 0.15s;
+        }
+        .var-btn:hover { background: var(--accent-green); color: #fff; }
+
+        .ep-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(560px, 1fr)); gap: 18px;
+        }
+        @media (max-width: 700px) { .ep-grid { grid-template-columns: 1fr; } }
+
+        .ep-card {
+            background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px;
+            padding: 20px; box-shadow: var(--card-shadow); display: flex; flex-direction: column; gap: 12px;
+        }
+        .ep-card.inactive { opacity: 0.72; border-style: dashed; }
+
+        .ep-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+        .ep-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .ep-title h3 { margin: 0; font-size: 16px; color: var(--text-primary); }
+        .ep-clave { font-family: 'Consolas', monospace; font-size: 12px; color: var(--text-secondary); background: #1a252c; padding: 2px 7px; border-radius: 5px; }
+
+        .method-badge {
+            padding: 3px 8px; border-radius: 5px; font-size: 11px; font-weight: 800; letter-spacing: 0.4px;
+            font-family: 'Consolas', monospace;
+        }
+        .m-POST { background: rgba(0, 168, 132, 0.2); color: #06cf9c; }
+        .m-GET { background: rgba(83, 189, 235, 0.2); color: #53bdeb; }
+        .m-PUT, .m-PATCH { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+        .m-DELETE { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+
+        .status-pill { padding: 4px 10px; border-radius: 20px; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+        .status-on { background: rgba(34, 197, 94, 0.16); color: #22c55e; }
+        .status-off { background: rgba(134, 150, 160, 0.18); color: #8696a0; }
+
+        .ep-desc { margin: 0; color: var(--text-secondary); font-size: 13px; }
+        .ep-url {
+            background: #0d161c; border: 1px solid var(--border-color); border-radius: 7px;
+            padding: 8px 12px; font-family: 'Consolas', monospace; font-size: 12.5px; color: #e9edef;
+            word-break: break-all;
+        }
+        .ep-meta { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--text-secondary); }
+        .ep-meta strong { color: var(--text-primary); }
+
+        .ep-body-pre {
+            margin: 0; background: #0d161c; border: 1px solid var(--border-color); border-radius: 7px;
+            padding: 10px 12px; font-family: 'Consolas', monospace; font-size: 12.5px; color: #a7f3d0;
+            overflow-x: auto; max-height: 150px; white-space: pre;
+        }
+
+        .ep-actions {
+            display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;
+            gap: 8px; padding-top: 8px; border-top: 1px solid var(--border-color);
+        }
+        .ep-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+        .btn-sm {
+            padding: 7px 12px; border-radius: 6px; font-size: 12.5px; font-weight: 600;
+            cursor: pointer; border: 1px solid transparent; display: inline-flex; align-items: center; gap: 6px;
+        }
+        .btn-test { background: rgba(83, 189, 235, 0.16); color: #53bdeb; border-color: rgba(83, 189, 235, 0.35); }
+        .btn-test:hover { background: #53bdeb; color: #0b141a; }
+        .btn-edit { background: var(--input-bg); color: var(--text-primary); border-color: var(--border-color); }
+        .btn-edit:hover { border-color: var(--accent-green); }
+        .btn-toggle { background: rgba(245, 158, 11, 0.14); color: #f59e0b; border-color: rgba(245, 158, 11, 0.3); }
+        .btn-toggle:hover { background: #f59e0b; color: #0b141a; }
+        .btn-del { background: rgba(239, 68, 68, 0.14); color: #ef4444; border-color: rgba(239, 68, 68, 0.3); }
+        .btn-del:hover { background: #ef4444; color: #fff; }
+
+        /* Modales */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75);
+            z-index: 2000; align-items: center; justify-content: center; padding: 16px;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal-box {
+            background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px;
+            width: 100%; max-width: 720px; max-height: 92vh; overflow-y: auto; padding: 24px;
+            box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
+        }
+        .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .modal-head h3 { margin: 0; color: var(--accent-green); font-size: 18px; }
+        .modal-close { background: none; border: none; color: var(--text-secondary); font-size: 20px; cursor: pointer; }
+        .modal-close:hover { color: #fff; }
+
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+        .form-group { margin-bottom: 12px; }
+        .form-group.full { grid-column: 1 / -1; }
+        .form-group label { display: block; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 5px; font-weight: 600; }
+        .form-group input[type=text], .form-group input[type=password], .form-group input[type=number],
+        .form-group select, .form-group textarea {
+            width: 100%; padding: 9px 12px; background: var(--input-bg); border: 1px solid var(--border-color);
+            border-radius: 6px; color: var(--text-primary); font-size: 13.5px; box-sizing: border-box; outline: none;
+        }
+        .form-group textarea { font-family: 'Consolas', monospace; font-size: 13px; resize: vertical; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--accent-green); }
+
+        .token-wrap { display: flex; gap: 6px; }
+        .token-wrap input { flex: 1; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+
+        .test-result {
+            margin-top: 14px; background: #0d161c; border: 1px solid var(--border-color);
+            border-radius: 8px; padding: 14px; display: none;
+        }
+        .test-result pre {
+            margin: 8px 0 0; font-family: 'Consolas', monospace; font-size: 12px;
+            color: #e9edef; max-height: 280px; overflow: auto; white-space: pre-wrap; word-break: break-word;
+        }
+    </style>
+</head>
+<body>
+
+    <header class="top-navbar">
+        <div class="brand-logo">
+            <i class="fa-solid fa-robot"></i>
+            <span>{{ brand.bot_name }}</span>
+        </div>
+        <nav class="nav-tabs">
+            <a href="/dashboard" class="nav-tab"><i class="fa-solid fa-chart-line"></i> Dashboard</a>
+            <a href="/monitor" class="nav-tab"><i class="fa-solid fa-comments"></i> Monitor en Vivo</a>
+            <a href="/admin/comprobantes" class="nav-tab"><i class="fa-solid fa-receipt"></i> Comprobantes{% if pendientes_comprobantes %} <span style="background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700;">{{ pendientes_comprobantes }}</span>{% endif %}</a>
+            <a href="/admin/leads" class="nav-tab"><i class="fa-solid fa-bullhorn"></i> Interesados</a>
+            <a href="/admin/ia" class="nav-tab"><i class="fa-solid fa-wand-magic-sparkles"></i> Asistente IA</a>
+            <a href="/admin/endpoints" class="nav-tab active"><i class="fa-solid fa-plug"></i> Endpoints API</a>
+            <a href="/admin/editor" class="nav-tab"><i class="fa-solid fa-pen-to-square"></i> Editor del Bot</a>
+            <a href="/admin/colaboradores" class="nav-tab"><i class="fa-solid fa-users"></i> Colaboradores</a>
+            <a href="/admin/usuarios" class="nav-tab"><i class="fa-solid fa-user-shield"></i> Usuarios</a>
+            <span style="color: #8696a0; font-size: 13px; margin: 0 4px; display: flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-circle-user" style="color: #00a884; font-size: 16px;"></i>
+                <strong style="color: #e9edef;">{{ session.get('username', 'Admin') }}</strong>
+            </span>
+            <a href="/logout" class="nav-tab logout"><i class="fa-solid fa-power-off"></i> Salir</a>
+        </nav>
+    </header>
+
+    <div class="main-container">
+        {% with mensajes = get_flashed_messages(with_categories=true) %}
+        {% for cat, msg in mensajes %}
+        <div class="alert-box {{ 'alert-success' if cat in ('success', 'info') else 'alert-error' }}">
+            <i class="fa-solid fa-circle-info"></i> {{ msg }}
+        </div>
+        {% endfor %}
+        {% endwith %}
+
+        <div class="header-bar">
+            <div>
+                <h2><i class="fa-solid fa-plug"></i> Configuración de Endpoints API</h2>
+                <p>Administra URLs, tokens de autenticación y cuerpos JSON con variables dinámicas para el flujo <strong>Soy Alumno</strong> ({{ total_activos }}/{{ endpoints|length }} activos).</p>
+            </div>
+            <button class="btn-main btn-primary" type="button" onclick="abrirCrear()">
+                <i class="fa-solid fa-plus"></i> Nuevo Endpoint
+            </button>
+        </div>
+
+        <div class="vars-banner">
+            <small><i class="fa-solid fa-code"></i> Variables dinámicas disponibles en el flujo Soy Alumno:</small>
+            {% for v, desc, ej in variables_catalogo %}
+            <span class="var-pill" title="{{ desc }} (ej. {{ ej }})">{&#8203;{{ v }}&#8203;}</span>
+            {% endfor %}
+        </div>
+
+        <div class="ep-grid">
+            {% for ep in endpoints %}
+            <div class="ep-card {% if not ep.activo %}inactive{% endif %}">
+                <div class="ep-top">
+                    <div class="ep-title">
+                        <span class="method-badge m-{{ ep.metodo }}">{{ ep.metodo }}</span>
+                        <h3>{{ ep.nombre }}</h3>
+                        <span class="ep-clave">{{ ep.clave }}</span>
+                    </div>
+                    <span class="status-pill {{ 'status-on' if ep.activo else 'status-off' }}">
+                        {{ '● Activo' if ep.activo else '○ Inactivo' }}
+                    </span>
+                </div>
+
+                {% if ep.descripcion %}
+                <p class="ep-desc">{{ ep.descripcion }}</p>
+                {% endif %}
+
+                <div class="ep-url">{{ ep.url }}</div>
+
+                <div class="ep-meta">
+                    <span><strong>Auth:</strong> {{ ep.auth_header }}{% if ep.auth_scheme %} ({{ ep.auth_scheme }}){% endif %}</span>
+                    <span>
+                        <strong>Token:</strong>
+                        {% if ep.token_estado == 'propio' %}
+                            <span style="color:#22c55e;">Configurado ({{ ep.token_mask }})</span>
+                        {% elif ep.token_estado == 'env' %}
+                            <span style="color:#53bdeb;">Desde .env ({{ ep.token_mask }})</span>
+                        {% else %}
+                            <span style="color:#f59e0b;">Sin token</span>
+                        {% endif %}
+                    </span>
+                    <span><strong>Timeout:</strong> {{ ep.timeout }}s</span>
+                </div>
+
+                <div>
+                    <small style="color:var(--text-secondary);display:block;margin-bottom:6px;">
+                        Cuerpo JSON enviado
+                        {% if ep.variables %}
+                        · Variables:
+                        {% for v in ep.variables %}<span class="var-pill" style="padding:1px 6px;font-size:11px;">{{ '{' ~ v ~ '}' }}</span> {% endfor %}
+                        {% endif %}
+                    </small>
+                    <pre class="ep-body-pre">{{ ep.body_template }}</pre>
+                </div>
+
+                <div class="ep-actions">
+                    <small style="color:var(--text-secondary);font-size:11.5px;">
+                        {% if ep.actualizado %}Editado: {{ ep.actualizado }}{% else %}Configuración base{% endif %}
+                    </small>
+                    <div class="ep-btns">
+                        <button type="button" class="btn-sm btn-test" onclick="abrirProbar({{ ep.id }})">
+                            <i class="fa-solid fa-play"></i> Probar
+                        </button>
+                        <button type="button" class="btn-sm btn-edit" onclick="abrirEditar({{ ep.id }})">
+                            <i class="fa-solid fa-pen"></i> Editar
+                        </button>
+                        <form method="POST" action="{{ url_for('main.admin_endpoints_toggle', eid=ep.id) }}" style="margin:0;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn-sm btn-toggle">
+                                <i class="fa-solid {{ 'fa-pause' if ep.activo else 'fa-check' }}"></i> {{ 'Desactivar' if ep.activo else 'Activar' }}
+                            </button>
+                        </form>
+                        <form method="POST" action="{{ url_for('main.admin_endpoints_eliminar', eid=ep.id) }}" style="margin:0;"
+                              onsubmit="return confirm('¿Eliminar el endpoint {{ ep.nombre }}?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn-sm btn-del" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- MODAL CREAR / EDITAR -->
+    <div id="modalForm" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-head">
+                <h3 id="modalFormTitle"><i class="fa-solid fa-plug"></i> Configurar Endpoint</h3>
+                <button type="button" class="modal-close" onclick="cerrarModales()">&times;</button>
+            </div>
+            <form method="POST" action="{{ url_for('main.admin_endpoints_guardar') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="id" id="f_id">
+
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Clave interna (identificador)</label>
+                        <input type="text" name="clave" id="f_clave" required pattern="[a-z0-9_]{2,60}" placeholder="ej. periodos_estudiante">
+                    </div>
+                    <div class="form-group">
+                        <label>Nombre visible</label>
+                        <input type="text" name="nombre" id="f_nombre" required maxlength="120" placeholder="ej. Periodos del Estudiante">
+                    </div>
+                    <div class="form-group full">
+                        <label>Descripción</label>
+                        <input type="text" name="descripcion" id="f_descripcion" maxlength="300" placeholder="Qué consulta realiza este endpoint">
+                    </div>
+                    <div class="form-group">
+                        <label>Método HTTP</label>
+                        <select name="metodo" id="f_metodo">
+                            <option value="POST">POST</option>
+                            <option value="GET">GET</option>
+                            <option value="PUT">PUT</option>
+                            <option value="PATCH">PATCH</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Timeout (segundos)</label>
+                        <input type="number" name="timeout" id="f_timeout" min="2" max="60" value="10">
+                    </div>
+                    <div class="form-group full">
+                        <label>URL del Endpoint (admite variables {var} si las necesitas)</label>
+                        <input type="text" name="url" id="f_url" required placeholder="https://api.mariategui.edu.pe/PeriodosEstudiante.php">
+                    </div>
+                    <div class="form-group">
+                        <label>Header de Autenticación</label>
+                        <input type="text" name="auth_header" id="f_auth_header" value="Authorization">
+                    </div>
+                    <div class="form-group">
+                        <label>Esquema (vacío si es API Key directa)</label>
+                        <input type="text" name="auth_scheme" id="f_auth_scheme" value="Bearer" placeholder="Bearer">
+                    </div>
+                    <div class="form-group full">
+                        <label>Token de acceso <small id="f_token_hint" style="color:#53bdeb;font-weight:400;"></small></label>
+                        <div class="token-wrap">
+                            <input type="password" name="token" id="f_token" autocomplete="new-password" placeholder="Pega aquí el token (déjalo vacío al editar para conservar el actual)">
+                            <button type="button" class="btn-main btn-sec" onclick="toggleVisToken()" title="Mostrar/ocultar"><i class="fa-solid fa-eye"></i></button>
+                        </div>
+                        <label id="f_limpiar_wrap" style="display:none;margin-top:6px;font-weight:400;font-size:12px;">
+                            <input type="checkbox" name="limpiar_token" id="f_limpiar_token" value="1"> Borrar token propio (usar el de .env o ninguno)
+                        </label>
+                    </div>
+                    <div class="form-group full">
+                        <label>Headers adicionales (JSON)</label>
+                        <textarea name="headers_json" id="f_headers" rows="2">{"Content-Type": "application/json"}</textarea>
+                    </div>
+                    <div class="form-group full">
+                        <label>Cuerpo JSON con variables dinámicas</label>
+                        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+                            {% for v, desc, ej in variables_catalogo %}
+                            <button type="button" class="var-btn" onclick="insertarVar('{{ v }}')" title="{{ desc }}">+ {{ '{' ~ v ~ '}' }}</button>
+                            {% endfor %}
+                        </div>
+                        <textarea name="body_template" id="f_body" rows="6" placeholder='{"dni": "{dni}"}'></textarea>
+                        <small style="color:var(--text-secondary);font-size:11.5px;">
+                            Usa comillas para texto (<code>"{dni}"</code>) y sin comillas para números (<code>{IdEstudiante}</code>, <code>{IdPeriodo}</code>).
+                        </small>
+                    </div>
+                    <div class="form-group full">
+                        <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;color:var(--text-primary);">
+                            <input type="checkbox" name="activo" id="f_activo" value="1" checked> Endpoint activo (habilitado para el bot)
+                        </label>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn-main btn-sec" onclick="cerrarModales()">Cancelar</button>
+                    <button type="submit" class="btn-main btn-primary"><i class="fa-solid fa-floppy-disk"></i> Guardar Endpoint</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL PROBAR ENDPOINT -->
+    <div id="modalTest" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-head">
+                <h3 id="testTitle"><i class="fa-solid fa-play"></i> Probar Endpoint</h3>
+                <button type="button" class="modal-close" onclick="cerrarModales()">&times;</button>
+            </div>
+            <div id="testUrl" class="ep-url" style="margin-bottom:14px;"></div>
+            <div id="testVarsContainer" class="form-grid"></div>
+            <div class="modal-actions" style="justify-content:space-between;">
+                <small style="color:var(--text-secondary);">Se ejecutará una consulta real contra el endpoint guardado.</small>
+                <div style="display:flex;gap:8px;">
+                    <button type="button" class="btn-main btn-sec" onclick="cerrarModales()">Cerrar</button>
+                    <button type="button" class="btn-main btn-primary" id="btnRunTest" onclick="ejecutarPrueba()">
+                        <i class="fa-solid fa-paper-plane"></i> Enviar prueba
+                    </button>
+                </div>
+            </div>
+            <div id="testResult" class="test-result">
+                <div id="testSummary" style="font-size:13px;font-weight:700;"></div>
+                <small style="color:var(--text-secondary);display:block;margin-top:8px;">Body enviado:</small>
+                <pre id="testSent" style="color:#53bdeb;max-height:110px;"></pre>
+                <small style="color:var(--text-secondary);display:block;margin-top:8px;">Respuesta:</small>
+                <pre id="testResp"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const ENDPOINTS = {{ endpoints|tojson }};
+        const EJEMPLOS = {
+            {% for v, desc, ej in variables_catalogo %}
+            "{{ v }}": "{{ ej }}",
+            {% endfor %}
+        };
+        const CSRF = document.querySelector('meta[name="csrf-token"]').content;
+        let epProbando = null;
+
+        function cerrarModales() {
+            document.getElementById('modalForm').classList.remove('open');
+            document.getElementById('modalTest').classList.remove('open');
+        }
+
+        function abrirCrear() {
+            document.getElementById('modalFormTitle').innerHTML = '<i class="fa-solid fa-plus"></i> Nuevo Endpoint';
+            document.getElementById('f_id').value = '';
+            document.getElementById('f_clave').value = '';
+            document.getElementById('f_clave').readOnly = false;
+            document.getElementById('f_nombre').value = '';
+            document.getElementById('f_descripcion').value = '';
+            document.getElementById('f_metodo').value = 'POST';
+            document.getElementById('f_timeout').value = 10;
+            document.getElementById('f_url').value = 'https://api.mariategui.edu.pe/';
+            document.getElementById('f_auth_header').value = 'Authorization';
+            document.getElementById('f_auth_scheme').value = 'Bearer';
+            document.getElementById('f_token').value = '';
+            document.getElementById('f_token').type = 'password';
+            document.getElementById('f_token_hint').textContent = '';
+            document.getElementById('f_limpiar_wrap').style.display = 'none';
+            document.getElementById('f_limpiar_token').checked = false;
+            document.getElementById('f_headers').value = '{"Content-Type": "application/json"}';
+            document.getElementById('f_body').value = '{\n  "IdEstudiante": {IdEstudiante},\n  "IdPeriodo": {IdPeriodo}\n}';
+            document.getElementById('f_activo').checked = true;
+            document.getElementById('modalForm').classList.add('open');
+        }
+
+        function abrirEditar(id) {
+            const ep = ENDPOINTS.find(x => x.id === id);
+            if (!ep) return;
+            document.getElementById('modalFormTitle').innerHTML = '<i class="fa-solid fa-pen"></i> Editar Endpoint — ' + ep.clave;
+            document.getElementById('f_id').value = ep.id;
+            document.getElementById('f_clave').value = ep.clave;
+            document.getElementById('f_clave').readOnly = false;
+            document.getElementById('f_nombre').value = ep.nombre;
+            document.getElementById('f_descripcion').value = ep.descripcion;
+            document.getElementById('f_metodo').value = ep.metodo;
+            document.getElementById('f_timeout').value = ep.timeout;
+            document.getElementById('f_url').value = ep.url;
+            document.getElementById('f_auth_header').value = ep.auth_header;
+            document.getElementById('f_auth_scheme').value = ep.auth_scheme;
+            document.getElementById('f_token').value = '';
+            document.getElementById('f_token').type = 'password';
+            document.getElementById('f_limpiar_token').checked = false;
+            if (ep.token_estado === 'propio') {
+                document.getElementById('f_token_hint').textContent = '(actual guardado: ' + ep.token_mask + ')';
+                document.getElementById('f_limpiar_wrap').style.display = 'block';
+            } else if (ep.token_estado === 'env') {
+                document.getElementById('f_token_hint').textContent = '(heredando de .env: ' + ep.token_mask + ')';
+                document.getElementById('f_limpiar_wrap').style.display = 'none';
+            } else {
+                document.getElementById('f_token_hint').textContent = '(sin token configurado)';
+                document.getElementById('f_limpiar_wrap').style.display = 'none';
+            }
+            document.getElementById('f_headers').value = ep.headers_json;
+            document.getElementById('f_body').value = ep.body_template;
+            document.getElementById('f_activo').checked = ep.activo;
+            document.getElementById('modalForm').classList.add('open');
+        }
+
+        function toggleVisToken() {
+            const inp = document.getElementById('f_token');
+            inp.type = inp.type === 'password' ? 'text' : 'password';
+        }
+
+        function insertarVar(nombre) {
+            const ta = document.getElementById('f_body');
+            const texto = '{' + nombre + '}';
+            const start = ta.selectionStart || 0;
+            const end = ta.selectionEnd || 0;
+            ta.value = ta.value.slice(0, start) + texto + ta.value.slice(end);
+            ta.focus();
+            ta.selectionStart = ta.selectionEnd = start + texto.length;
+        }
+
+        function abrirProbar(id) {
+            const ep = ENDPOINTS.find(x => x.id === id);
+            if (!ep) return;
+            epProbando = ep;
+            document.getElementById('testTitle').innerHTML = '<i class="fa-solid fa-play"></i> Probar: ' + ep.nombre;
+            document.getElementById('testUrl').textContent = ep.metodo + ' ' + ep.url;
+            const cont = document.getElementById('testVarsContainer');
+            cont.innerHTML = '';
+            if (ep.variables.length === 0) {
+                cont.innerHTML = '<div class="form-group full"><small style="color:var(--text-secondary);">Este endpoint no requiere variables dinámicas.</small></div>';
+            } else {
+                ep.variables.forEach(v => {
+                    const div = document.createElement('div');
+                    div.className = 'form-group';
+                    const lbl = document.createElement('label');
+                    lbl.textContent = '{' + v + '}';
+                    const inp = document.createElement('input');
+                    inp.type = 'text';
+                    inp.dataset.var = v;
+                    inp.value = EJEMPLOS[v] || '';
+                    inp.placeholder = 'Valor para ' + v;
+                    div.appendChild(lbl);
+                    div.appendChild(inp);
+                    cont.appendChild(div);
+                });
+            }
+            document.getElementById('testResult').style.display = 'none';
+            document.getElementById('modalTest').classList.add('open');
+        }
+
+        async function ejecutarPrueba() {
+            if (!epProbando) return;
+            const btn = document.getElementById('btnRunTest');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Consultando...';
+
+            const variables = {};
+            document.querySelectorAll('#testVarsContainer input[data-var]').forEach(inp => {
+                variables[inp.dataset.var] = inp.value;
+            });
+
+            try {
+                const r = await fetch('/api/endpoints/' + epProbando.id + '/probar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    body: JSON.stringify({ variables })
+                });
+                const res = await r.json();
+                const box = document.getElementById('testResult');
+                box.style.display = 'block';
+                const sum = document.getElementById('testSummary');
+                if (res.ok) {
+                    sum.style.color = '#22c55e';
+                    sum.textContent = '✅ HTTP ' + res.status_code + ' · ' + res.elapsed_ms + ' ms';
+                } else {
+                    sum.style.color = '#ef4444';
+                    sum.textContent = '❌ ' + (res.error || ('HTTP ' + res.status_code)) + ' · ' + (res.elapsed_ms || 0) + ' ms';
+                }
+                document.getElementById('testSent').textContent = JSON.stringify(res.sent_body, null, 2);
+                document.getElementById('testResp').textContent = res.data !== null
+                    ? JSON.stringify(res.data, null, 2)
+                    : (res.raw_text || '(sin respuesta)');
+            } catch (e) {
+                const box = document.getElementById('testResult');
+                box.style.display = 'block';
+                document.getElementById('testSummary').style.color = '#ef4444';
+                document.getElementById('testSummary').textContent = '❌ Error de conexión con el panel: ' + e;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Enviar prueba';
+            }
+        }
+
+        window.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarModales(); });
+    </script>
+</body>
+</html>

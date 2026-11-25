@@ -1,0 +1,3273 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ brand.bot_name }} Builder | Editor visual de flujo</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-canvas: #f4f6f8;
+            --grid-color: rgba(0, 0, 0, 0.06);
+            --card-bg: #ffffff;
+            --card-header-bg: #f8fafc;
+            --text-main: #0f172a;
+            --text-sub: #64748b;
+            --border-color: #e2e8f0;
+            --accent-primary: #00a884;
+            --accent-blue: #2563eb;
+            --accent-purple: #9333ea;
+            --line-color: #94a3b8;
+            --line-active: #00a884;
+            --shadow-card: 0 4px 14px rgba(0, 0, 0, 0.08);
+            --shadow-card-hover: 0 10px 25px rgba(0, 168, 132, 0.18);
+        }
+
+        body.dark-mode {
+            --bg-canvas: #0b141a;
+            --grid-color: rgba(255, 255, 255, 0.05);
+            --card-bg: #182229;
+            --card-header-bg: #111b21;
+            --text-main: #e9edef;
+            --text-sub: #8696a0;
+            --border-color: #2f3b44;
+            --accent-primary: #00a884;
+            --accent-blue: #38bdf8;
+            --accent-purple: #c084fc;
+            --line-color: #475569;
+            --line-active: #00a884;
+            --shadow-card: 0 4px 14px rgba(0, 0, 0, 0.3);
+            --shadow-card-hover: 0 10px 25px rgba(0, 168, 132, 0.25);
+        }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        * { box-sizing: border-box; }
+
+        body {
+            background-color: var(--bg-canvas);
+            color: var(--text-main);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            margin: 0; padding: 0;
+            display: flex; flex-direction: column;
+            height: 100vh; overflow: hidden;
+            user-select: none;
+        }
+
+        /* --- Top Global Navbar (Menú General Corporativo) --- */
+        .top-navbar {
+            background-color: #202c33 !important;
+            color: #e9edef !important;
+            height: 56px;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            border-bottom: 1px solid #2f3b44 !important;
+            flex-shrink: 0;
+            z-index: 1000;
+            box-sizing: border-box;
+        }
+
+        .brand-box {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 18px;
+            font-weight: 700;
+            color: #00a884 !important;
+        }
+        .brand-box i {
+            font-size: 22px;
+            color: #00a884;
+        }
+
+        .flow-path-badge {
+            background: rgba(0, 168, 132, 0.15);
+            color: #00a884;
+            font-size: 11.5px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid rgba(0, 168, 132, 0.25);
+        }
+
+        .nav-tabs {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .nav-tab {
+            color: #8696a0 !important;
+            text-decoration: none;
+            padding: 7px 14px;
+            border-radius: 8px;
+            font-size: 13.5px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+        .nav-tab:hover {
+            background-color: #222e35 !important;
+            color: #e9edef !important;
+        }
+        .nav-tab.active {
+            background-color: #00a884 !important;
+            color: #ffffff !important;
+            box-shadow: 0 2px 8px rgba(0, 168, 132, 0.35);
+        }
+        .nav-tab.logout {
+            color: #ef4444 !important;
+        }
+        .nav-tab.logout:hover {
+            background-color: rgba(239, 68, 68, 0.12) !important;
+        }
+
+        /* --- Secondary Canvas Toolbar (Barra de Herramientas Exclusiva del Editor) --- */
+        .editor-subbar {
+            background-color: #111b21 !important;
+            color: #e9edef !important;
+            height: 48px;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            border-bottom: 1px solid #2f3b44 !important;
+            flex-shrink: 0;
+            z-index: 900;
+            box-sizing: border-box;
+        }
+
+        .subbar-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .subbar-divider {
+            width: 1px;
+            height: 22px;
+            background: #2f3b44;
+            margin: 0 6px;
+        }
+
+        .tool-btn-nav {
+            background: #202c33;
+            border: 1px solid #2f3b44;
+            color: #e9edef;
+            padding: 6px 13px;
+            border-radius: 7px;
+            font-size: 12.5px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+        .tool-btn-nav:hover:not(:disabled) {
+            background: #2a3942;
+            border-color: #00a884;
+            color: #ffffff;
+        }
+        .tool-btn-nav:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        .tool-btn-nav.play-active {
+            background: #00a884;
+            color: white;
+            border-color: #06cf9c;
+            box-shadow: 0 0 14px rgba(0, 168, 132, 0.5);
+            animation: pulse-green 2s infinite;
+        }
+
+        .btn-create-step {
+            background: #00a884;
+            color: #ffffff;
+            border: 1px solid #06cf9c;
+            padding: 6px 14px;
+            border-radius: 7px;
+            font-size: 12.5px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0, 168, 132, 0.3);
+        }
+        .btn-create-step:hover {
+            background: #06cf9c;
+            box-shadow: 0 4px 14px rgba(0, 168, 132, 0.45);
+            transform: translateY(-1px);
+        }
+
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(0, 168, 132, 0.6); }
+            70% { box-shadow: 0 0 0 12px rgba(0, 168, 132, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 168, 132, 0); }
+        }
+
+        /* --- Quick Jump & Branch Navigation Bar --- */
+        .column-jump-bar {
+            position: absolute;
+            top: 14px; left: 20px;
+            display: flex; gap: 8px;
+            z-index: 500;
+            background: rgba(17, 27, 33, 0.88);
+            backdrop-filter: blur(8px);
+            padding: 6px 12px;
+            border-radius: 20px;
+            border: 1px solid #2f3b44;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+            align-items: center;
+        }
+        .jump-btn {
+            background: #202c33; border: 1px solid #2f3b44; color: #8696a0;
+            font-size: 11.5px; font-weight: 600; padding: 5px 12px; border-radius: 12px;
+            cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 6px;
+        }
+        .jump-btn:hover { background: #00a884; color: white; border-color: #06cf9c; }
+        .jump-btn.branch-gest { border-color: #2563eb; color: #38bdf8; }
+        .jump-btn.branch-segu { border-color: #10b981; color: #34d399; }
+        .jump-btn.branch-bene { border-color: #9333ea; color: #c084fc; }
+
+        .wire-filter-select {
+            background: #202c33; border: 1.5px solid #00a884; color: #00a884;
+            font-size: 11.5px; font-weight: 700; padding: 4px 10px; border-radius: 12px;
+            outline: none; cursor: pointer;
+        }
+
+        /* --- Canvas Container --- */
+        .canvas-viewport {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            cursor: grab;
+            background-image: 
+                radial-gradient(circle at 1px 1px, var(--grid-color) 1.2px, transparent 0);
+            background-size: 28px 28px;
+        }
+        .canvas-viewport.panning { cursor: grabbing; }
+
+        .canvas-world {
+            position: absolute;
+            top: 0; left: 0;
+            width: 8000px; height: 6000px;
+            transform-origin: 0 0;
+            transition: transform 0.05s ease-out;
+        }
+
+        /* Branch Group Framing Boxes */
+        .branch-frame-box {
+            position: absolute;
+            border-radius: 18px;
+            border: 2px dashed rgba(255, 255, 255, 0.1);
+            pointer-events: none;
+            padding: 16px;
+            z-index: 0;
+        }
+        .branch-frame-box.gest { background: rgba(37, 99, 235, 0.03); border-color: rgba(37, 99, 235, 0.25); }
+        .branch-frame-box.segu { background: rgba(16, 185, 129, 0.03); border-color: rgba(16, 185, 129, 0.25); }
+        .branch-frame-box.bene { background: rgba(147, 51, 234, 0.03); border-color: rgba(147, 51, 234, 0.25); }
+
+        .branch-frame-title {
+            position: absolute;
+            top: -14px; left: 24px;
+            font-size: 12px; font-weight: 800;
+            padding: 2px 12px; border-radius: 12px;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .gest .branch-frame-title { background: #2563eb; color: white; }
+        .segu .branch-frame-title { background: #10b981; color: white; }
+        .bene .branch-frame-title { background: #9333ea; color: white; }
+
+        /* Column Headers on Canvas */
+        .canvas-column-header {
+            position: absolute;
+            top: 15px;
+            width: 320px;
+            padding: 8px 14px;
+            background: rgba(17, 27, 33, 0.75);
+            backdrop-filter: blur(6px);
+            border: 1px dashed var(--border-color);
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: space-between;
+            font-size: 11.5px; font-weight: 700; color: var(--text-sub);
+            letter-spacing: 0.5px; text-transform: uppercase;
+        }
+        .btn-add-in-col {
+            background: #00a884; color: white; border: none;
+            padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;
+            cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 4px;
+        }
+        .btn-add-in-col:hover { background: #06cf9c; }
+
+        /* --- SVG Overlay for Connections --- */
+        #connectionsSvg {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .connection-path {
+            fill: none;
+            stroke: #00a884;
+            stroke-width: 3.5px;
+            stroke-linecap: round;
+            transition: stroke 0.2s, stroke-width 0.2s, opacity 0.2s;
+            pointer-events: stroke;
+            filter: drop-shadow(0 0 6px rgba(0, 168, 132, 0.5));
+        }
+        .connection-path.return-wire {
+            stroke-dasharray: 5 5;
+            stroke: #38bdf8;
+        }
+        .connection-hit-area {
+            fill: none;
+            stroke: transparent;
+            stroke-width: 16px;
+            cursor: pointer;
+            pointer-events: stroke;
+        }
+        .connection-hit-area:hover + .connection-path,
+        .connection-path:hover, 
+        .connection-path.active {
+            stroke: #00a884 !important;
+            stroke-width: 4.5px !important;
+            opacity: 1 !important;
+            filter: drop-shadow(0 0 10px rgba(0, 168, 132, 0.8));
+            stroke-dasharray: 8 4;
+            animation: dash-flow 1.2s linear infinite;
+        }
+
+        @keyframes dash-flow {
+            from { stroke-dashoffset: 24; }
+            to { stroke-dashoffset: 0; }
+        }
+
+        .pulse-particle {
+            fill: #00a884;
+            r: 7;
+            filter: drop-shadow(0 0 8px #06cf9c);
+        }
+
+        /* --- MANYCHAT STEP CARD (DRAGGABLE ABSOLUTE) --- */
+        .manychat-card {
+            position: absolute;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: var(--shadow-card);
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            z-index: 5;
+            transition: box-shadow 0.2s, border-color 0.2s, top 0.25s cubic-bezier(0.16, 1, 0.3, 1), left 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .manychat-card:hover {
+            box-shadow: var(--shadow-card-hover);
+            border-color: var(--accent-primary);
+            z-index: 30;
+        }
+        .manychat-card.expanded-card {
+            z-index: 20;
+        }
+        .manychat-card.selected {
+            border: 2.5px solid var(--accent-primary) !important;
+            box-shadow: 0 0 28px rgba(0, 168, 132, 0.5) !important;
+            z-index: 60 !important;
+        }
+        .manychat-card.connected-target-card {
+            border: 2px solid #38bdf8 !important;
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.4) !important;
+            z-index: 15;
+        }
+        .manychat-card.drag-target-hover {
+            border: 3px solid #00a884 !important;
+            box-shadow: 0 0 35px rgba(0, 168, 132, 0.9) !important;
+            animation: highlight-pulse 1s ease-in-out infinite;
+            z-index: 80 !important;
+        }
+        .manychat-card.target-highlight {
+            border: 3px solid #38bdf8 !important;
+            box-shadow: 0 0 30px rgba(56, 189, 248, 0.8) !important;
+            animation: highlight-pulse 1.5s ease-in-out infinite;
+            z-index: 70 !important;
+        }
+
+        /* --- COMPACT HEADER-ONLY MODE --- */
+        .manychat-card.compact-card {
+            min-height: 52px;
+            height: auto;
+        }
+        .manychat-card.compact-card .card-header {
+            border-bottom: none;
+            border-radius: 12px;
+            padding: 10px 14px;
+        }
+        .manychat-card.compact-card .card-metrics-row,
+        .manychat-card.compact-card .card-body-snippet,
+        .manychat-card.compact-card .card-body-editor,
+        .manychat-card.compact-card .card-inline-link-box,
+        .manychat-card.compact-card .card-buttons-section {
+            display: none !important;
+        }
+        .manychat-card.compact-card .handle-output-header {
+            display: block !important;
+        }
+
+        /* --- EXPANDED CARD STATE --- */
+        .manychat-card.expanded-card {
+            min-height: auto;
+        }
+        .manychat-card.expanded-card .card-header {
+            border-bottom: 1px solid var(--border-color);
+            border-top-left-radius: 12px;
+            border-top-right-radius: 12px;
+            border-bottom-left-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+        .manychat-card.expanded-card .card-metrics-row {
+            display: flex !important;
+        }
+        .manychat-card.expanded-card .card-body-editor {
+            display: flex !important;
+        }
+        .manychat-card.expanded-card .card-inline-link-box {
+            display: flex !important;
+        }
+        .manychat-card.expanded-card .card-buttons-section {
+            display: flex !important;
+        }
+        .manychat-card.expanded-card .handle-output-header {
+            display: none !important;
+        }
+
+        .btn-card-expand-toggle {
+            background: transparent; border: none; color: var(--text-sub);
+            font-size: 11px; cursor: pointer; padding: 2px 6px; border-radius: 4px;
+            transition: background 0.2s, color 0.2s;
+        }
+        .btn-card-expand-toggle:hover { background: rgba(0, 168, 132, 0.15); color: #00a884; }
+
+        .handle-output-header {
+            position: absolute;
+            right: -9px;
+            transform: translateY(-50%);
+            width: 14px; height: 14px;
+            border-radius: 50%;
+            background: var(--card-bg);
+            border: 3px solid var(--accent-blue);
+            z-index: 10;
+            cursor: crosshair;
+            transition: transform 0.2s;
+        }
+        .handle-output-header:hover { transform: translateY(-50%) scale(1.3); background: #2563eb; }
+
+        @keyframes highlight-pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.04); }
+            100% { transform: scale(1); }
+        }
+
+        /* Card Header & Drag Handle */
+        .card-header {
+            background: var(--card-header-bg);
+            padding: 12px 14px;
+            border-top-left-radius: 14px;
+            border-top-right-radius: 14px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex; align-items: center; justify-content: space-between;
+            cursor: move;
+        }
+        .card-header:active { cursor: grabbing; }
+
+        .card-start-badge {
+            position: absolute;
+            top: -12px; left: 16px;
+            background: #10b981;
+            color: white;
+            font-size: 10px; font-weight: 800;
+            padding: 2px 8px; border-radius: 10px;
+            text-transform: uppercase; letter-spacing: 0.5px;
+            box-shadow: 0 2px 6px rgba(16, 185, 129, 0.4);
+            display: flex; align-items: center; gap: 4px;
+        }
+
+        .handle-input {
+            position: absolute;
+            left: -9px; top: 24px;
+            width: 16px; height: 16px;
+            border-radius: 50%;
+            background: var(--card-bg);
+            border: 3px solid var(--accent-primary);
+            z-index: 10;
+            cursor: pointer;
+            transition: transform 0.2s, background 0.2s;
+        }
+        .handle-input:hover, .handle-input.drag-target-hover {
+            transform: scale(1.3);
+            background: #00a884;
+            box-shadow: 0 0 10px #06cf9c;
+        }
+
+        .card-title-group {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 13.5px; font-weight: 700; color: var(--text-main);
+        }
+        .card-title-group i { color: var(--accent-primary); font-size: 15px; }
+
+        .card-category-tag {
+            font-size: 10.5px;
+            background: rgba(0, 168, 132, 0.12); color: var(--accent-primary);
+            padding: 2px 7px; border-radius: 6px; font-weight: 700;
+            border: 1px solid rgba(0, 168, 132, 0.25);
+        }
+
+        .card-metrics-row {
+            display: flex; justify-content: space-around;
+            padding: 8px 12px;
+            background: rgba(0,0,0,0.02);
+            border-bottom: 1px solid var(--border-color);
+            font-size: 11px; color: var(--text-sub);
+        }
+        .metric-box { text-align: center; }
+        .metric-val { font-weight: 700; font-size: 13px; color: var(--text-main); }
+
+        /* --- Inline In-Card Editing Styles --- */
+        .card-inline-title-input {
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            color: var(--text-main);
+            font-size: 13px;
+            font-weight: 700;
+            outline: none;
+            padding: 2px 4px;
+            width: 140px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        .card-inline-title-input:hover, .card-inline-title-input:focus {
+            background: rgba(0, 168, 132, 0.08);
+            border-color: #00a884;
+        }
+
+        .card-body-editor {
+            padding: 10px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .card-inline-textarea {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 12.5px;
+            line-height: 1.45;
+            padding: 8px 10px;
+            resize: vertical;
+            min-height: 70px;
+            outline: none;
+            box-sizing: border-box;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        .card-inline-textarea:focus {
+            border-color: #00a884;
+            background: var(--card-bg);
+            box-shadow: 0 0 10px rgba(0, 168, 132, 0.2);
+        }
+
+        .card-inline-link-box {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0 14px 8px 14px;
+        }
+        .card-inline-link-input {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.02);
+            border: 1px dashed var(--border-color);
+            border-radius: 6px;
+            color: #38bdf8;
+            font-size: 11px;
+            padding: 4px 8px;
+            outline: none;
+        }
+        .card-inline-link-input:focus {
+            border-color: #38bdf8;
+            border-style: solid;
+        }
+
+        .btn-card-delete-direct {
+            background: transparent;
+            border: none;
+            color: #ef4444;
+            font-size: 11px;
+            cursor: pointer;
+            padding: 2px 5px;
+            border-radius: 4px;
+            opacity: 0.6;
+            transition: opacity 0.2s, background 0.2s;
+        }
+        .btn-card-delete-direct:hover {
+            opacity: 1;
+            background: rgba(239, 68, 68, 0.15);
+        }
+
+        /* --- Canvas Context Menu (Right Click) --- */
+        .canvas-context-menu {
+            position: fixed;
+            background: #182229;
+            border: 1px solid #2f3b44;
+            border-radius: 10px;
+            padding: 6px 0;
+            width: 230px;
+            box-shadow: 0 10px 35px rgba(0, 0, 0, 0.7);
+            z-index: 5000;
+            display: none;
+            flex-direction: column;
+            animation: fadeIn 0.15s ease-out;
+        }
+        .context-item {
+            padding: 8px 14px;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #e9edef;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+        }
+        .context-item:hover {
+            background: #00a884;
+            color: white;
+        }
+        .context-divider {
+            height: 1px;
+            background: #2f3b44;
+            margin: 4px 0;
+        }
+
+        .card-body-snippet {
+            padding: 12px 16px;
+            font-size: 12.5px; color: var(--text-sub);
+            line-height: 1.45; max-height: 80px; overflow: hidden;
+            cursor: pointer;
+        }
+
+        .card-buttons-section {
+            padding: 10px 14px 12px 14px;
+            display: flex; flex-direction: column; gap: 8px;
+            border-top: 1px solid var(--border-color);
+            background: rgba(0,0,0,0.01);
+        }
+
+        .card-button-item {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 12px; font-weight: 600;
+            color: var(--accent-blue);
+            display: flex; align-items: center; justify-content: space-between;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .card-button-item:hover {
+            background: rgba(37, 99, 235, 0.08);
+            border-color: var(--accent-blue);
+        }
+        .btn-edit-connector {
+            opacity: 0.6;
+            color: #38bdf8;
+            font-size: 11px;
+            margin-right: 6px;
+            padding: 2px 5px;
+            border-radius: 4px;
+            transition: opacity 0.2s, background 0.2s;
+        }
+        .card-button-item:hover .btn-edit-connector { opacity: 1; }
+        .btn-edit-connector:hover { background: rgba(56, 189, 248, 0.2); }
+
+        .btn-delete-connector {
+            opacity: 0;
+            color: #ef4444; font-size: 11px; margin-right: 6px;
+            padding: 2px 4px; border-radius: 4px; transition: opacity 0.2s;
+        }
+        .card-button-item:hover .btn-delete-connector { opacity: 1; }
+        .btn-delete-connector:hover { background: rgba(239, 68, 68, 0.2); }
+
+        .btn-target-badge {
+            font-size: 10.5px; font-weight: 700; color: #00a884;
+            background: rgba(0, 168, 132, 0.12); padding: 2px 7px; border-radius: 6px;
+            margin-left: 6px; border: 1px solid rgba(0, 168, 132, 0.25);
+            max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            display: inline-flex; align-items: center; gap: 3px; cursor: pointer;
+            transition: background 0.15s, border-color 0.15s;
+        }
+        .btn-target-badge:hover {
+            background: rgba(0, 168, 132, 0.25);
+            border-color: #00a884;
+        }
+
+        /* --- Contextual In-Card Button Popover --- */
+        .card-btn-popover {
+            position: absolute;
+            background: #182229;
+            border: 2px solid #00a884;
+            border-radius: 12px;
+            padding: 14px;
+            width: 310px;
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            animation: popoverFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes popoverFadeIn {
+            from { opacity: 0; transform: translateY(-8px) scale(0.96); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .popover-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12.5px;
+            font-weight: 700;
+            color: #00a884;
+            border-bottom: 1px solid #2f3b44;
+            padding-bottom: 8px;
+        }
+
+        .handle-output {
+            position: absolute;
+            right: -18px; top: 50%;
+            transform: translateY(-50%);
+            width: 14px; height: 14px;
+            border-radius: 50%;
+            background: var(--card-bg);
+            border: 3px solid var(--accent-blue);
+            z-index: 10;
+            cursor: crosshair;
+            transition: transform 0.2s;
+        }
+        .handle-output:hover { transform: translateY(-50%) scale(1.3); background: #2563eb; }
+
+        .card-add-button-row {
+            background: transparent;
+            border: 1px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 11.5px; font-weight: 600; color: var(--text-sub);
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+            cursor: pointer; transition: 0.2s;
+        }
+        .card-add-button-row:hover {
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
+            background: rgba(0, 168, 132, 0.05);
+        }
+
+        /* Floating Delete Badge on Connector Lines */
+        .line-delete-badge {
+            position: absolute;
+            background: #ef4444;
+            color: white;
+            font-size: 10px; font-weight: 700;
+            padding: 3px 7px; border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.5);
+            cursor: pointer; z-index: 100;
+            display: flex; align-items: center; gap: 4px;
+            transform: translate(-50%, -50%);
+            transition: transform 0.2s;
+        }
+        .line-delete-badge:hover { transform: translate(-50%, -50%) scale(1.15); background: #dc2626; }
+
+        /* Toast Notifications */
+        .toast-notification {
+            position: fixed;
+            bottom: 24px; left: 50%;
+            transform: translateX(-50%);
+            background: #111b21;
+            border: 1px solid #00a884;
+            color: #e9edef;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 13px; font-weight: 600;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+            z-index: 4000;
+            display: flex; align-items: center; gap: 8px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translate(-50%, 20px); }
+            to { opacity: 1; transform: translate(-50%, 0); }
+        }
+
+        /* --- PLAY MODE / SIMULATOR BANNER & WHATSAPP PHONE PREVIEW --- */
+        .play-banner {
+            position: absolute;
+            top: 16px; left: 50%;
+            transform: translateX(-50%);
+            background: #00a884;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 13px; font-weight: 700;
+            box-shadow: 0 6px 20px rgba(0, 168, 132, 0.4);
+            display: flex; align-items: center; gap: 10px;
+            z-index: 500;
+            transition: all 0.3s ease;
+        }
+
+        /* Floating Phone Simulator Box */
+        .phone-simulator-widget {
+            position: fixed;
+            bottom: 24px; right: 24px;
+            width: 360px; height: 560px;
+            background: #111b21;
+            border: 2px solid #2f3b44;
+            border-radius: 24px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+            z-index: 1500;
+            display: flex; flex-direction: column;
+            overflow: hidden;
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+        }
+        .phone-simulator-widget.hidden {
+            transform: translateY(600px);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .phone-header {
+            background: #075e54;
+            color: white;
+            padding: 12px 16px;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .phone-avatar-box { display: flex; align-items: center; gap: 10px; }
+        .phone-avatar {
+            width: 36px; height: 36px; border-radius: 50%;
+            background: #00a884; display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 16px; color: white;
+        }
+        .phone-status { font-size: 11px; opacity: 0.8; }
+
+        .phone-body {
+            flex: 1;
+            background-color: #0b141a;
+            background-image: radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 0);
+            background-size: 16px 16px;
+            padding: 14px;
+            overflow-y: auto;
+            display: flex; flex-direction: column; gap: 12px;
+        }
+
+        .chat-bubble-bot {
+            background: #202c33;
+            color: #e9edef;
+            padding: 12px 14px;
+            border-radius: 12px;
+            border-top-left-radius: 2px;
+            font-size: 13px;
+            line-height: 1.45;
+            max-width: 88%;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            align-self: flex-start;
+        }
+        .chat-bubble-user {
+            background: #005c4b;
+            color: white;
+            padding: 9px 13px;
+            border-radius: 12px;
+            border-top-right-radius: 2px;
+            font-size: 13px;
+            max-width: 80%;
+            align-self: flex-end;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
+
+        .sim-buttons-container {
+            display: flex; flex-direction: column; gap: 6px; margin-top: 10px;
+        }
+        .sim-btn {
+            background: #111b21; border: 1px solid #00a884; color: #00a884;
+            padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 700;
+            cursor: pointer; text-align: center; transition: 0.2s;
+        }
+        .sim-btn:hover { background: #00a884; color: white; }
+
+        /* --- Slide-Over Node Inspector --- */
+        .inspector-drawer {
+            position: fixed;
+            top: 60px; right: -480px;
+            width: 460px; height: calc(100vh - 60px);
+            background: #111b21;
+            color: #e9edef;
+            border-left: 1px solid #2f3b44;
+            box-shadow: -10px 0 30px rgba(0,0,0,0.5);
+            z-index: 2000;
+            display: flex; flex-direction: column;
+            transition: right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .inspector-drawer.open { right: 0; }
+
+        .drawer-header {
+            padding: 16px 20px;
+            background: #202c33;
+            border-bottom: 1px solid #2f3b44;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .drawer-header h3 { margin: 0; font-size: 15px; color: #00a884; display: flex; align-items: center; gap: 8px; }
+
+        .drawer-body { flex: 1; padding: 20px; overflow-y: auto; }
+
+        .form-group { margin-bottom: 18px; }
+        .form-group label { display: block; font-size: 12.5px; font-weight: 600; color: #8696a0; margin-bottom: 6px; }
+        .form-group textarea, .form-group input, .form-group select {
+            width: 100%; background: #2a3942; border: 1px solid #2f3b44; border-radius: 8px;
+            color: #e9edef; padding: 10px 12px; font-size: 13.5px; outline: none;
+        }
+        .form-group textarea { height: 130px; resize: vertical; line-height: 1.45; }
+
+        .btn-builder-box {
+            background: #182229; border: 1px solid #2f3b44; border-radius: 10px; padding: 14px; margin-bottom: 18px;
+        }
+        .btn-row {
+            display: flex; align-items: center; gap: 8px; background: #111b21;
+            padding: 8px; border-radius: 8px; border: 1px solid #2f3b44; margin-bottom: 8px;
+        }
+
+        .drawer-footer {
+            padding: 16px 20px; background: #202c33; border-top: 1px solid #2f3b44;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .btn-primary {
+            background: #00a884; color: white; border: none; padding: 10px 20px;
+            border-radius: 8px; font-weight: 700; font-size: 13.5px; cursor: pointer;
+            display: flex; align-items: center; gap: 8px; transition: 0.2s;
+        }
+        .btn-primary:hover { background: #06cf9c; }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);
+            padding: 8px 12px; border-radius: 6px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+        }
+        .btn-danger:hover { background: #ef4444; color: white; }
+
+        /* Floating Zoom & Pan Controls */
+        .canvas-controls {
+            position: absolute;
+            bottom: 24px; left: 24px;
+            background: #111b21; border: 1px solid #2f3b44;
+            border-radius: 12px; padding: 8px;
+            display: flex; flex-direction: column; gap: 8px; z-index: 100;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        }
+        .ctrl-group { display: flex; gap: 4px; justify-content: center; }
+        .ctrl-btn {
+            background: #202c33; border: 1px solid #2f3b44; color: #e9edef;
+            width: 34px; height: 34px; border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: 0.2s; font-size: 13px;
+        }
+        .ctrl-btn:hover { background: #00a884; color: white; }
+
+        /* Modal Nuevo Paso / Columna & Confirmaciones */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.75); z-index: 3000; align-items: center; justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+        .modal-box {
+            background: var(--card-bg, #182229); border: 1px solid var(--border-color, #2f3b44); border-radius: 14px;
+            width: 500px; padding: 24px; box-shadow: 0 10px 35px rgba(0,0,0,0.6); color: var(--text-main, #e9edef);
+        }
+        @keyframes modalPop {
+            from { opacity: 0; transform: scale(0.92); }
+            to { opacity: 1; transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 1. MENÚ GENERAL CORPORATIVO (IDÉNTICO AL RESTO DEL SISTEMA) -->
+    <header class="top-navbar">
+        <div class="brand-box">
+            <i class="fa-solid fa-robot"></i>
+            <span>{{ brand.bot_name }}</span>
+        </div>
+
+        <nav class="nav-tabs">
+            <a href="/dashboard" class="nav-tab">
+                <i class="fa-solid fa-chart-line"></i> Dashboard
+            </a>
+            <a href="/monitor" class="nav-tab">
+                <i class="fa-solid fa-comments"></i> Monitor en Vivo
+            </a>
+            {% if session.get('user_role') in ('admin', 'contabilidad') %}
+            <a href="/admin/comprobantes" class="nav-tab">
+                <i class="fa-solid fa-receipt"></i> Comprobantes{% if pendientes_comprobantes %} <span style="background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700;margin-left:4px;">{{ pendientes_comprobantes }}</span>{% endif %}
+            </a>
+            {% endif %}
+            <a href="/admin/endpoints" class="nav-tab">
+                <i class="fa-solid fa-plug"></i> Endpoints API
+            </a>
+            <a href="/admin/editor" class="nav-tab active">
+                <i class="fa-solid fa-pen-to-square"></i> Editor del Bot
+            </a>
+            <a href="/admin/colaboradores" class="nav-tab">
+                <i class="fa-solid fa-users"></i> Colaboradores
+            </a>
+            <a href="/admin/usuarios" class="nav-tab">
+                <i class="fa-solid fa-user-shield"></i> Usuarios y Perfil
+            </a>
+            <span style="color: #8696a0; font-size: 13px; margin: 0 4px; display: flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-circle-user" style="color: #00a884; font-size: 16px;"></i>
+                <strong style="color: #e9edef;">{{ session.get('username', 'Admin') }}</strong>
+            </span>
+            <a href="/logout" class="nav-tab logout">
+                <i class="fa-solid fa-power-off"></i> Salir
+            </a>
+        </nav>
+    </header>
+
+    <!-- 2. BARRA DE HERRAMIENTAS EXCLUSIVA DEL EDITOR (CANVAS TOOLBAR) -->
+    <div class="editor-subbar">
+        <div class="subbar-group">
+            <span class="flow-path-badge">
+                <i class="fa-solid fa-diagram-project"></i> Diagrama de Flujo
+            </span>
+
+            <div class="subbar-divider"></div>
+
+            <div style="display: flex; gap: 4px;">
+                <button class="tool-btn-nav" id="btnUndo" onclick="undoAction()" title="Deshacer última acción (Ctrl+Z)" disabled style="opacity: 0.5;">
+                    <i class="fa-solid fa-rotate-left" style="color: #f59e0b;"></i> <span id="undoBtnText">Deshacer</span>
+                </button>
+                <button class="tool-btn-nav" id="btnRedo" onclick="redoAction()" title="Rehacer acción (Ctrl+Y)" disabled style="opacity: 0.5;">
+                    <i class="fa-solid fa-rotate-right" style="color: #10b981;"></i> <span id="redoBtnText">Rehacer</span>
+                </button>
+            </div>
+
+            <div class="subbar-divider"></div>
+
+            <button class="tool-btn-nav" id="btnToggleCompactAll" onclick="toggleGlobalCompactMode()" title="Alternar Vista Compacta (Cabeceras) / Vista Expandida">
+                <i class="fa-solid fa-compress" id="compactModeIcon"></i> <span id="compactModeText">🗂️ Solo Cabeceras</span>
+            </button>
+            <button class="tool-btn-nav" onclick="autoOrganizeLayout()" title="Alinea el diagrama por Ramas Secuenciales">
+                <i class="fa-solid fa-wand-magic-sparkles" style="color: #38bdf8;"></i> <span>🧹 Organizar por Ramas</span>
+            </button>
+
+            <div class="subbar-divider"></div>
+
+            <button class="tool-btn-nav" id="btnPlayMode" onclick="togglePlayMode()" title="Simulador Interactivo del Flujo">
+                <i class="fa-solid fa-play" style="color: #38bdf8;"></i> <span>▶️ Probar Flujo (Play Mode)</span>
+            </button>
+        </div>
+
+        <div class="subbar-group">
+            <button class="tool-btn-nav" onclick="toggleTheme()" title="Cambiar Modo Claro / Oscuro">
+                <i class="fa-solid fa-moon" id="themeIcon"></i> <span>Modo Claro/Oscuro</span>
+            </button>
+            <button class="btn-create-step" onclick="createNewStepDirect()" title="Crear un nuevo paso en el diagrama">
+                <i class="fa-solid fa-plus-circle"></i> <span>➕ Crear Nuevo Paso</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- VIEWPORT CON CANVAS INFINITO -->
+    <div class="canvas-viewport" id="viewport">
+
+        <!-- BARRA FLOTANTE DE SALTO POR RAMAS / SECCIONES & MODO DE FLECHAS -->
+        <div class="column-jump-bar">
+            <span style="font-size: 11px; color: #00a884; font-weight: 700; display: flex; align-items: center; gap: 4px;">
+                <i class="fa-solid fa-location-arrow"></i> Ver Rama:
+            </span>
+            <button class="jump-btn branch-gest" onclick="panToBranch('gest')"><i class="fa-solid fa-folder-open"></i> 📚 Vacantes</button>
+            <button class="jump-btn branch-segu" onclick="panToBranch('segu')"><i class="fa-solid fa-heart-pulse"></i> 🎓 Alumnos</button>
+            <button class="jump-btn branch-bene" onclick="panToBranch('bene')"><i class="fa-solid fa-gift"></i> 📍 Contacto</button>
+
+            <span style="border-left: 1px solid #2f3b44; height: 16px; margin: 0 4px;"></span>
+
+            <span style="font-size: 11px; color: #38bdf8; font-weight: 700; display: flex; align-items: center; gap: 4px;">
+                <i class="fa-solid fa-eye"></i> Visualización de Enlaces:
+            </span>
+            <select class="wire-filter-select" id="wireFilterSelect" onchange="changeWireFilter(this.value)">
+                <option value="selected" selected>🎯 Mostrar Flechas SOLO al Seleccionar/Hover Tarjeta (100% Limpio)</option>
+                <option value="main">✨ Mostrar Todas las Flechas de Avance</option>
+                <option value="all">🌐 Mostrar Absolutamente Todas las Flechas</option>
+            </select>
+        </div>
+        
+        <!-- PLAY MODE BANNER INDICATOR -->
+        <div class="play-banner" id="playBanner" style="display: none;">
+            <i class="fa-solid fa-play"></i>
+            <span>MODO SIMULADOR ACTIVO — Haz clic en cualquier botón para simular la conversación</span>
+            <button class="tool-btn-nav" style="padding: 3px 8px; font-size: 11px;" onclick="togglePlayMode()">Salir</button>
+        </div>
+
+        <div class="canvas-world" id="world">
+            
+            <!-- MARCOS VISUALES DE RAMAS / GRUPOS DE SECUENCIA -->
+            <div id="branchFramesContainer"></div>
+
+            <!-- CONTENEDOR DE ENCABEZADOS DE COLUMNA -->
+            <div id="columnHeadersContainer"></div>
+
+            <!-- CAPA SVG CONECTORES DE FLUJO (BEZIER CURVES) -->
+            <svg id="connectionsSvg">
+                <defs>
+                    <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                        <polygon points="0 0, 8 4, 0 8" fill="#00a884" />
+                    </marker>
+                    <marker id="arrowhead-gray" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                        <polygon points="0 0, 8 4, 0 8" fill="#94a3b8" />
+                    </marker>
+                </defs>
+            </svg>
+
+            <!-- CAPA DE TARJETAS ARRASTRABLES LIBREMENTE -->
+            <div id="cardsContainer"></div>
+
+            <!-- MINI-POPOVER FLOTANTE CONTEXTUAL DE EDICIÓN DE BOTONES IN-CARD -->
+            <div class="card-btn-popover" id="cardBtnPopover">
+                <div class="popover-header">
+                    <span><i class="fa-solid fa-route"></i> Configurar Conector</span>
+                    <button type="button" class="btn-card-expand-toggle" onclick="closeButtonPopover()"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                    <div>
+                        <label style="font-size:11px; color:#8696a0; display:block; margin-bottom:3px; font-weight:600;">Texto del Botón:</label>
+                        <input type="text" id="popoverBtnTitle" placeholder="Ej. Ver mis servicios" style="width:100%; background:#202c33; border:1px solid #2f3b44; border-radius:6px; color:#e9edef; padding:6px 8px; font-size:12px; outline:none;">
+                    </div>
+                    <div>
+                        <label style="font-size:11px; color:#8696a0; display:block; margin-bottom:3px; font-weight:600;">Conectar hacia Paso/Destino:</label>
+                        <select id="popoverBtnTarget" style="width:100%; background:#202c33; border:1px solid #2f3b44; border-radius:6px; color:#e9edef; padding:6px 8px; font-size:12px; outline:none;"></select>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px;">
+                        <button type="button" class="btn-danger" style="padding:5px 10px; font-size:11px;" onclick="deletePopoverConnector()"><i class="fa-solid fa-trash-can"></i> Eliminar</button>
+                        <button type="button" class="btn-primary" style="padding:5px 14px; font-size:11.5px;" onclick="savePopoverConnector()"><i class="fa-solid fa-check"></i> Guardar Conexión</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- MENÚ CONTEXTUAL AL HACER CLIC DERECHO EN EL LIENZO -->
+        <div class="canvas-context-menu" id="canvasContextMenu" onmousedown="event.stopPropagation()">
+            <div class="context-item" onmousedown="event.stopPropagation()" onclick="createStepAtContextPosition()"><i class="fa-solid fa-plus-circle" style="color:#00a884;"></i> ➕ Crear Nuevo Paso Aquí</div>
+            <div class="context-divider"></div>
+            <div class="context-item" onmousedown="event.stopPropagation()" onclick="undoAction(); closeContextMenu();"><i class="fa-solid fa-rotate-left" style="color:#f59e0b;"></i> ↩️ Deshacer / Atrás (Ctrl+Z)</div>
+            <div class="context-item" onmousedown="event.stopPropagation()" onclick="redoAction(); closeContextMenu();"><i class="fa-solid fa-rotate-right" style="color:#10b981;"></i> ↪️ Rehacer (Ctrl+Y)</div>
+            <div class="context-divider"></div>
+            <div class="context-item" onmousedown="event.stopPropagation()" onclick="autoOrganizeLayout(); closeContextMenu();"><i class="fa-solid fa-wand-magic-sparkles" style="color:#38bdf8;"></i> 🧹 Organizar Diagrama</div>
+            <div class="context-item" onmousedown="event.stopPropagation()" onclick="resetZoom(); closeContextMenu();"><i class="fa-solid fa-arrows-to-dot" style="color:#c084fc;"></i> 🎯 Re-centrar Vista</div>
+        </div>
+
+        <!-- CONTROLES FLOTANTES PAN LATERAL / ZOOM -->
+        <div class="canvas-controls">
+            <div class="ctrl-group">
+                <button class="ctrl-btn" onclick="panDirection('up')" title="Mover Arriba ⬆️"><i class="fa-solid fa-chevron-up"></i></button>
+            </div>
+            <div class="ctrl-group">
+                <button class="ctrl-btn" onclick="panDirection('left')" title="Mover Izquierda ⬅️"><i class="fa-solid fa-chevron-left"></i></button>
+                <button class="ctrl-btn" onclick="resetZoom()" title="Re-centrar Vista 🎯"><i class="fa-solid fa-arrows-to-dot"></i></button>
+                <button class="ctrl-btn" onclick="panDirection('right')" title="Mover Derecha ➡️"><i class="fa-solid fa-chevron-right"></i></button>
+            </div>
+            <div class="ctrl-group">
+                <button class="ctrl-btn" onclick="panDirection('down')" title="Mover Abajo ⬇️"><i class="fa-solid fa-chevron-down"></i></button>
+            </div>
+            <hr style="border:0; border-top:1px solid #2f3b44; width:100%; margin:4px 0;">
+            <div class="ctrl-group">
+                <button class="ctrl-btn" onclick="zoomIn()" title="Acercar +"><i class="fa-solid fa-plus"></i></button>
+                <button class="ctrl-btn" onclick="zoomOut()" title="Alejar -"><i class="fa-solid fa-minus"></i></button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- WHATSAPP PHONE SIMULATOR WIDGET (PLAY MODE) -->
+    <div class="phone-simulator-widget hidden" id="phoneSimulator">
+        <div class="phone-header">
+            <div class="phone-avatar-box">
+                <div class="phone-avatar">🤖</div>
+                <div>
+                    <div style="font-weight: 700; font-size: 13.5px;">{{ brand.bot_name }} Asistente Virtual</div>
+                    <div class="phone-status">En línea — Probar Flujo</div>
+                </div>
+            </div>
+            <button class="ctrl-btn" style="width: 28px; height: 28px;" onclick="togglePlayMode()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="phone-body" id="phoneChatBody">
+            <!-- Dynamic WhatsApp Messages Go Here -->
+        </div>
+    </div>
+
+    <!-- INSPECTOR SLIDE-OVER DRAWER -->
+    <div class="inspector-drawer" id="inspectorDrawer">
+        <div class="drawer-header">
+            <h3><i class="fa-solid fa-pen-to-square"></i> Inspeccionar / Editar Paso</h3>
+            <button class="ctrl-btn" onclick="closeDrawer()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="drawer-body">
+            <form id="editorForm" method="POST" action="/admin/editor">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" id="formAction" value="save">
+                <input type="hidden" name="clave" id="currentClave" value="">
+                <input type="hidden" name="botones_json" id="botonesJsonInput" value="">
+
+                <div class="form-group">
+                    <label>Nombre Claro del Paso:</label>
+                    <input type="text" id="displayTitleInput" style="font-weight: 700; color: #00a884;" placeholder="Ej. Solicitud de Constancia de Trabajo">
+                </div>
+
+                <div class="form-group">
+                    <label>Código Técnico (Sistema):</label>
+                    <input type="text" id="displayCodeInput" readonly style="font-family: monospace; background: #182229; color: #53bdeb;">
+                </div>
+
+                <div class="form-group">
+                    <label>Texto del Mensaje de WhatsApp:</label>
+                    <textarea id="textoInput" name="texto" placeholder="Escribe el mensaje..." oninput="updateCardPreview()"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Enlace / URL Externa (Opcional):</label>
+                    <input type="text" id="linkInput" name="link" placeholder="https://forms.cloud.microsoft/...">
+                </div>
+
+                <!-- BUTTON BUILDER SECTION -->
+                <div class="btn-builder-box">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <span style="font-size: 13px; font-weight: 700; color: #00a884;"><i class="fa-solid fa-route"></i> Botones de Salida (Conectores)</span>
+                        <span style="font-size: 11px; color: #8696a0;">Máx 3</span>
+                    </div>
+                    <div id="buttonRowsContainer"></div>
+                    <button type="button" class="tool-btn-nav" style="width: 100%; justify-content: center; margin-top: 6px;" onclick="addButtonRow()">
+                        <i class="fa-solid fa-plus-circle"></i> Agregar Conector / Botón
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="drawer-footer">
+            <button type="button" class="btn-danger" onclick="deleteCurrentOption()"><i class="fa-solid fa-trash"></i> Eliminar Paso</button>
+            <button type="button" class="btn-primary" onclick="submitForm()"><i class="fa-solid fa-floppy-disk"></i> Guardar Cambios</button>
+        </div>
+    </div>
+
+    <!-- MODAL ASISTIDO NUEVO NODO / COLUMNA -->
+    <div class="modal-overlay" id="newOptionModal">
+        <div class="modal-box">
+            <h3 style="margin-bottom: 6px; color: #00a884; display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-circle-plus"></i> Asistente de Creación de Pasos
+            </h3>
+            <p style="color: #8696a0; font-size: 13px; margin: 0 0 16px 0;">Crea un nuevo paso en el chatbot. Se colocará automáticamente en la rama de flujo correspondiente.</p>
+
+            <form method="POST" action="/admin/editor" id="newOptionForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="save">
+
+                <div class="form-group">
+                    <label><i class="fa-solid fa-diagram-project"></i> 1. Selecciona la Rama de Flujo:</label>
+                    <select id="newColumnSelect" onchange="onColumnSelectChange()">
+                        <option value="60">🚀 1. Triggers & Pasos Iniciales</option>
+                        <option value="500_80" selected>📚 Rama 1: Vacantes e informes</option>
+                        <option value="500_1350">🎓 Rama 2: Alumnos</option>
+                        <option value="500_2420">📍 Rama 3: Contacto</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label><i class="fa-solid fa-heading"></i> 2. Nombre del Paso (Cabecera):</label>
+                    <input type="text" id="newTitleInput" required placeholder="Ej. Solicitud de Constancia de Trabajo" oninput="handleNewInputs()">
+                </div>
+
+                <div class="form-group">
+                    <label><i class="fa-solid fa-code"></i> Código Técnico del Sistema (Auto-generado):</label>
+                    <input type="text" name="clave" id="newCodeInput" readonly required style="background: #182229; color: #00a884; font-weight: bold; font-family: monospace;">
+                </div>
+                
+                <div class="form-group">
+                    <label><i class="fa-solid fa-comment-dots"></i> 3. Mensaje de WhatsApp:</label>
+                    <textarea id="newTextInput" name="texto" required placeholder="Ingresa la respuesta que dará el bot..." style="height: 90px;" oninput="handleNewInputs()"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label><i class="fa-solid fa-link"></i> 4. Enlace / Formulario Externa (Opcional):</label>
+                    <input type="text" name="link" placeholder="https://forms.office.com/...">
+                </div>
+
+                <div class="form-group">
+                    <label><i class="fa-solid fa-diagram-next"></i> 5. Conectar automáticamente desde:</label>
+                    <select id="newSourceNodeSelect">
+                        <option value="none">-- Sin conexión inicial (Conectar manualmente luego) --</option>
+                        <option value="bienvenida">👋 Bienvenida (ID)</option>
+                        <option value="inicio">🏠 Menú principal</option>
+                        <option value="m_gest">📚 Vacantes e informes</option>
+                        <option value="m_segu">🎓 Servicios para alumnos</option>
+                        <option value="m_bene">📍 Contacto</option>
+                    </select>
+                </div>
+                
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                    <button type="button" class="tool-btn-nav" onclick="closeNewModal()">Cancelar</button>
+                    <button type="submit" id="btnSubmitNewOption" class="btn-primary" disabled style="opacity:0.5;">✨ Crear e Insertar Paso</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL DE CONFIRMACIÓN Y ALERTAS PERSONALIZADO -->
+    <div class="modal-overlay" id="customConfirmModal" style="z-index: 4000;">
+        <div class="modal-box" style="max-width: 440px; border-radius: 16px; padding: 24px; background: var(--card-bg, #182229); border: 1px solid var(--border-color, #2f3b44); box-shadow: 0 12px 40px rgba(0,0,0,0.6); animation: modalPop 0.18s ease-out;">
+            <div style="display: flex; align-items: flex-start; gap: 16px; margin-bottom: 16px;">
+                <div id="customConfirmIconBg" style="width: 46px; height: 46px; border-radius: 12px; background: rgba(239, 68, 68, 0.15); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                    <i id="customConfirmIcon" class="fa-solid fa-triangle-exclamation" style="font-size: 22px; color: #ef4444;"></i>
+                </div>
+                <div style="flex: 1;">
+                    <h3 id="customConfirmTitle" style="margin: 0 0 6px 0; font-size: 17px; font-weight: 700; color: var(--text-main, #e9edef);">¿Confirmar acción?</h3>
+                    <div id="customConfirmMessage" style="color: var(--text-sub, #8696a0); font-size: 13.5px; line-height: 1.5;">¿Estás seguro de realizar esta acción?</div>
+                </div>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px;">
+                <button type="button" class="tool-btn-nav" id="customConfirmCancelBtn" style="padding: 8px 18px; font-size: 13px;">Cancelar</button>
+                <button type="button" class="btn-primary" id="customConfirmOkBtn" style="padding: 8px 20px; font-size: 13px; background: #ef4444; border-color: #dc2626; color: white; cursor: pointer;">Aceptar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let respuestasData = {{ respuestas_json|tojson }};
+
+        /* --- CUSTOM CONFIRM & ALERT MODAL ENGINE --- */
+        function customConfirm({
+            title = '¿Estás seguro?',
+            message = '',
+            confirmText = 'Aceptar',
+            cancelText = 'Cancelar',
+            isDanger = true,
+            icon = 'fa-triangle-exclamation'
+        } = {}) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('customConfirmModal');
+                const titleEl = document.getElementById('customConfirmTitle');
+                const msgEl = document.getElementById('customConfirmMessage');
+                const okBtn = document.getElementById('customConfirmOkBtn');
+                const cancelBtn = document.getElementById('customConfirmCancelBtn');
+                const iconEl = document.getElementById('customConfirmIcon');
+                const iconBg = document.getElementById('customConfirmIconBg');
+
+                titleEl.textContent = title;
+                msgEl.innerHTML = message;
+                okBtn.textContent = confirmText;
+                cancelBtn.textContent = cancelText;
+                cancelBtn.style.display = 'inline-flex';
+
+                if (isDanger) {
+                    okBtn.style.background = '#ef4444';
+                    okBtn.style.borderColor = '#dc2626';
+                    okBtn.style.color = '#ffffff';
+                    iconBg.style.background = 'rgba(239, 68, 68, 0.15)';
+                    iconEl.style.color = '#ef4444';
+                    iconEl.className = `fa-solid ${icon || 'fa-trash-can'}`;
+                } else {
+                    okBtn.style.background = '#00a884';
+                    okBtn.style.borderColor = '#00a884';
+                    okBtn.style.color = '#ffffff';
+                    iconBg.style.background = 'rgba(0, 168, 132, 0.15)';
+                    iconEl.style.color = '#00a884';
+                    iconEl.className = `fa-solid ${icon || 'fa-circle-info'}`;
+                }
+
+                const handleOk = () => { cleanup(); resolve(true); };
+                const handleCancel = () => { cleanup(); resolve(false); };
+                const handleKeyDown = (e) => {
+                    if (e.key === 'Escape') handleCancel();
+                    else if (e.key === 'Enter') handleOk();
+                };
+
+                const cleanup = () => {
+                    modal.style.display = 'none';
+                    okBtn.removeEventListener('click', handleOk);
+                    cancelBtn.removeEventListener('click', handleCancel);
+                    document.removeEventListener('keydown', handleKeyDown);
+                };
+
+                okBtn.addEventListener('click', handleOk);
+                cancelBtn.addEventListener('click', handleCancel);
+                document.addEventListener('keydown', handleKeyDown);
+
+                modal.style.display = 'flex';
+                okBtn.focus();
+            });
+        }
+
+        function customAlert({
+            title = 'Atención',
+            message = '',
+            okText = 'Entendido',
+            icon = 'fa-circle-info',
+            iconColor = '#38bdf8'
+        } = {}) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('customConfirmModal');
+                const titleEl = document.getElementById('customConfirmTitle');
+                const msgEl = document.getElementById('customConfirmMessage');
+                const okBtn = document.getElementById('customConfirmOkBtn');
+                const cancelBtn = document.getElementById('customConfirmCancelBtn');
+                const iconEl = document.getElementById('customConfirmIcon');
+                const iconBg = document.getElementById('customConfirmIconBg');
+
+                titleEl.textContent = title;
+                msgEl.innerHTML = message;
+                okBtn.textContent = okText;
+                cancelBtn.style.display = 'none';
+
+                okBtn.style.background = '#00a884';
+                okBtn.style.borderColor = '#00a884';
+                okBtn.style.color = '#ffffff';
+                iconBg.style.background = 'rgba(56, 189, 248, 0.15)';
+                iconEl.style.color = iconColor;
+                iconEl.className = `fa-solid ${icon}`;
+
+                const handleOk = () => { cleanup(); resolve(true); };
+                const handleKeyDown = (e) => {
+                    if (e.key === 'Escape' || e.key === 'Enter') handleOk();
+                };
+
+                const cleanup = () => {
+                    modal.style.display = 'none';
+                    okBtn.removeEventListener('click', handleOk);
+                    document.removeEventListener('keydown', handleKeyDown);
+                };
+
+                okBtn.addEventListener('click', handleOk);
+                document.addEventListener('keydown', handleKeyDown);
+
+                modal.style.display = 'flex';
+                okBtn.focus();
+            });
+        }
+
+        /* --- UNDO / REDO HISTORY ENGINE (DESHACER / REHACER) --- */
+        let historyStack = [];
+        let redoStack = [];
+        const MAX_HISTORY = 40;
+
+        function snapshotState() {
+            return {
+                respuestasData: JSON.parse(JSON.stringify(respuestasData)),
+                nodePositions: JSON.parse(JSON.stringify(nodePositions)),
+                activeKey: activeKey
+            };
+        }
+
+        function pushHistory() {
+            redoStack = [];
+            const snap = snapshotState();
+            historyStack.push(snap);
+            if (historyStack.length > MAX_HISTORY) {
+                historyStack.shift();
+            }
+            updateUndoRedoButtons();
+        }
+
+        function updateUndoRedoButtons() {
+            const btnUndo = document.getElementById('btnUndo');
+            const btnRedo = document.getElementById('btnRedo');
+            if (btnUndo) {
+                btnUndo.disabled = (historyStack.length === 0);
+                btnUndo.style.opacity = (historyStack.length === 0) ? '0.5' : '1';
+                btnUndo.title = `Deshacer última acción (Ctrl+Z) [${historyStack.length} disponibles]`;
+            }
+            if (btnRedo) {
+                btnRedo.disabled = (redoStack.length === 0);
+                btnRedo.style.opacity = (redoStack.length === 0) ? '0.5' : '1';
+                btnRedo.title = `Rehacer acción (Ctrl+Y) [${redoStack.length} disponibles]`;
+            }
+        }
+
+        function undoAction() {
+            if (historyStack.length === 0) {
+                showToast('ℹ️ No hay más acciones para deshacer');
+                return;
+            }
+            
+            // Push current state to redo
+            redoStack.push(snapshotState());
+            
+            // Pop previous state
+            const prevState = historyStack.pop();
+            applyHistoryState(prevState, '↩️ Acción Deshecha (Atrás)');
+        }
+
+        function redoAction() {
+            if (redoStack.length === 0) {
+                showToast('ℹ️ No hay más acciones para rehacer');
+                return;
+            }
+            
+            // Push current state to undo
+            historyStack.push(snapshotState());
+            
+            // Pop next state
+            const nextState = redoStack.pop();
+            applyHistoryState(nextState, '↪️ Acción Rehecha (Adelante)');
+        }
+
+        function applyHistoryState(state, message) {
+            const oldKeys = new Set(respuestasData.map(r => r.clave));
+            const newKeys = new Set(state.respuestasData.map(r => r.clave));
+
+            // Restore in-memory data
+            respuestasData = JSON.parse(JSON.stringify(state.respuestasData));
+            nodePositions = JSON.parse(JSON.stringify(state.nodePositions));
+            localStorage.setItem('gethi_node_positions', JSON.stringify(nodePositions));
+
+            // Sync with backend database
+            oldKeys.forEach(k => {
+                if (!newKeys.has(k) && !['bienvenida', 'inicio', 'm_gest', 'm_segu', 'm_bene'].includes(k)) {
+                    const fd = new FormData();
+                    fd.append('csrf_token', '{{ csrf_token() }}');
+                    fd.append('action', 'delete');
+                    fd.append('clave', k);
+                    fetch('/admin/editor', { method: 'POST', body: fd });
+                }
+            });
+
+            respuestasData.forEach(item => {
+                const fd = new FormData();
+                fd.append('csrf_token', '{{ csrf_token() }}');
+                fd.append('action', 'save');
+                fd.append('clave', item.clave);
+                fd.append('titulo', item.title || getFriendlyTitle(item.clave));
+                fd.append('texto', item.texto || '');
+                fd.append('link', item.link || '');
+                fd.append('botones_json', item.botones_json || '[]');
+                fetch('/admin/editor', { method: 'POST', body: fd });
+            });
+
+            renderCards();
+            renderConnections();
+            updateUndoRedoButtons();
+            if (state.activeKey) selectCard(state.activeKey, false);
+            showToast(message);
+        }
+
+        // Global keyboard shortcut for Ctrl+Z and Ctrl+Y
+        window.addEventListener('keydown', (e) => {
+            const isTyping = ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName);
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+                if (!isTyping) {
+                    e.preventDefault();
+                    undoAction();
+                }
+            } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
+                if (!isTyping) {
+                    e.preventDefault();
+                    redoAction();
+                }
+            }
+        });
+        
+        // Dynamic Friendly Titles Map
+        const friendlyNamesMap = {
+            'bienvenida': '👋 Bienvenida (tras validar ID)',
+            'inicio': '🏠 Menú principal',
+            'm_gest': '📚 Vacantes e informes',
+            'm_segu': '🎓 Servicios para alumnos',
+            'm_bene': '📍 Contacto',
+            'v_colegio': '🏫 Colegio', 'v_inicial': 'Colegio · Inicial', 'v_primaria': 'Colegio · Primaria', 'v_secundaria': 'Colegio · Secundaria',
+            'v_instituto': '🎓 Instituto Pedagógico', 'v_inst_inicial': 'Instituto · Educación Inicial',
+            'v_inst_primaria': 'Instituto · Educación Primaria', 'v_inst_fisica': 'Instituto · Educación Física',
+            'f_matricula': 'Proceso de matrícula',
+            'acc_deudas': '💳 Consulta de pagos', 'acc_notas': '📝 Consulta de notas', 'comp_enviar': '📤 Envío de comprobante',
+            'f_horarios': 'Horarios de atención', 'f_ubicacion': 'Ubicación', 'f_asesor': 'Hablar con un asesor'
+        };
+
+        const categoryBadgesMap = {
+            'bienvenida': '🚀 PASO INICIAL',
+            'inicio': '🚀 PASO INICIAL',
+            'm_gest': '📊 MENÚ PRINCIPAL',
+            'm_segu': '📊 MENÚ PRINCIPAL',
+            'm_bene': '📊 MENÚ PRINCIPAL',
+            'acc_deudas': '⚙️ FLUJO GUIADO', 'acc_notas': '⚙️ FLUJO GUIADO', 'comp_enviar': '⚙️ FLUJO GUIADO',
+            'f_asesor': '🙋 ATENCIÓN'
+        };
+
+        const defaultButtonsMap = {
+            'bienvenida': [{ id: 'm_gest', title: '📚 Vacantes' }, { id: 'm_segu', title: '🎓 Soy alumno' }, { id: 'm_bene', title: '📍 Contacto' }],
+            'inicio': [{ id: 'm_gest', title: '📚 Vacantes' }, { id: 'm_segu', title: '🎓 Soy alumno' }, { id: 'm_bene', title: '📍 Contacto' }],
+            'm_gest': [{ id: 'v_colegio', title: '🏫 Colegio' }, { id: 'v_instituto', title: '🎓 Instituto' }, { id: 'f_matricula', title: '📝 Matrícula' }],
+            'm_segu': [{ id: 'acc_deudas', title: '💳 Mis pagos' }, { id: 'acc_notas', title: '📝 Mis notas' }, { id: 'comp_enviar', title: '📤 Enviar comprobante' }],
+            'm_bene': [{ id: 'f_horarios', title: '🕒 Horarios' }, { id: 'f_ubicacion', title: '📍 Ubicación' }, { id: 'f_asesor', title: '🙋 Asesor' }]
+        };
+
+        // PERFECT COMPACT HORIZONTAL 3-BRANCH TREE SEQUENCE POSITIONS (V6)
+        const defaultPositions = {
+            // Column 1: Triggers & Start (x: 60)
+            'bienvenida': { x: 60, y: 60 },
+            'inicio': { x: 60, y: 200 },
+
+            // Column 2: Main Menus per Branch (x: 480)
+            'm_gest': { x: 480, y: 60 },
+            'm_segu': { x: 480, y: 400 },
+            'm_bene': { x: 480, y: 700 },
+
+            // Column 3: Branch 1 (Gestiones - Row 1 - Compact Spacing 75px) (x: 900)
+            'f_foto': { x: 900, y: 60 },
+            'f_lice': { x: 900, y: 135 },
+            'f_bole': { x: 900, y: 210 },
+            'f_cons': { x: 900, y: 285 },
+
+            // Column 3: Branch 2 (Seguros - Row 2) (x: 900)
+            'f_eps': { x: 900, y: 400 },
+            'f_onco': { x: 900, y: 475 },
+            'f_cont': { x: 900, y: 550 },
+
+            // Column 3: Branch 3 (Beneficios - Row 3) (x: 900)
+            'f_estu': { x: 900, y: 700 },
+            'f_cupo': { x: 900, y: 775 },
+            'f_cata': { x: 900, y: 850 }
+        };
+
+        const columnHeadersList = [
+            { x: 60, title: '🚀 1. PASOS INICIALES (TRIGGERS)' },
+            { x: 480, title: '📊 2. MENÚS PRINCIPALES' },
+            { x: 900, title: '📄 3. RESPUESTAS & FORMULARIOS POR RAMA' }
+        ];
+
+        function getFriendlyTitle(key) {
+            const item = respuestasData.find(r => r.clave === key);
+            if (item && item.title) return item.title;
+            const customMap = JSON.parse(localStorage.getItem('gethi_custom_titles') || '{}');
+            if (customMap[key]) return customMap[key];
+            if (friendlyNamesMap[key]) return friendlyNamesMap[key];
+            const cleanKey = key.replace('f_', '').replace(/_/g, ' ');
+            return '✨ ' + cleanKey.charAt(0).toUpperCase() + cleanKey.slice(1);
+        }
+
+        function getCategoryBadge(key) {
+            if (categoryBadgesMap[key]) return categoryBadgesMap[key];
+            const item = respuestasData.find(r => r.clave === key);
+            if (item) {
+                const link = (item.link || '').toLowerCase();
+                if (link.includes('form') || link.includes('sharepoint') || link.includes('drive.google') || link.includes('docs.google') || link.includes('solicitud') || link.includes('registro')) {
+                    return '📄 FORMULARIO';
+                }
+                if (link.length > 5) {
+                    return '🔗 ENLACE WEB';
+                }
+            }
+
+            // Check if connected from specific branch menus
+            const seguMenu = respuestasData.find(r => r.clave === 'm_segu');
+            if (seguMenu && getNodeButtons(seguMenu).some(b => b.id === key)) {
+                return '🩺 SEGURO';
+            }
+            const beneMenu = respuestasData.find(r => r.clave === 'm_bene');
+            if (beneMenu && getNodeButtons(beneMenu).some(b => b.id === key)) {
+                return '🎁 BENEFICIO';
+            }
+            const gestMenu = respuestasData.find(r => r.clave === 'm_gest');
+            if (gestMenu && getNodeButtons(gestMenu).some(b => b.id === key)) {
+                return '📄 INFORMACIÓN';
+            }
+
+            return 'PASO DE FLUJO';
+        }
+
+        let activeKey = "{{ active_clave }}";
+        let hoveredKey = null;
+        let currentButtons = [];
+        let zoomLevel = 0.85;
+        let panX = 60;
+        let panY = 40;
+        let playMode = false;
+        let wireFilterMode = 'selected'; // Default: 'selected' for 100% clean canvas!
+        let compactViewMode = true; // Default: Compact Header-Only view!
+        let expandedCardKeys = new Set();
+
+        // Force clean layout alignment update v7
+        if (localStorage.getItem('gethi_pos_v7') !== 'true') {
+            localStorage.removeItem('gethi_node_positions');
+            localStorage.setItem('gethi_pos_v7', 'true');
+        }
+        let nodePositions = JSON.parse(localStorage.getItem('gethi_node_positions') || '{}');
+
+        function init() {
+            renderColumnHeaders();
+            computeAutoLayout(false);
+
+            const urlParams = new URLSearchParams(window.location.search);
+            if (!urlParams.has('active')) {
+                activeKey = null; // Start 100% clean with 0 lines on load!
+            }
+
+            setTimeout(() => {
+                renderConnections();
+                if (activeKey) selectCard(activeKey);
+            }, 100);
+            
+            setupPanZoomAndDrag();
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.toString()
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function getNodeEstimatedHeight(clave) {
+            const isExpanded = expandedCardKeys.has(clave) || (!compactViewMode && !expandedCardKeys.has(clave + '_collapsed'));
+            if (!isExpanded) return 64;
+            const item = respuestasData.find(r => r.clave === clave) || { botones_json: '' };
+            const btns = getNodeButtons(item);
+            return 340 + (btns.length * 44);
+        }
+
+        /* --- DYNAMIC AUTO-LAYOUT ENGINE (CALCULO DE ALTURA ACUMULADA POR RAMAS - ZERO OVERLAP) --- */
+        function computeAutoLayout(shouldToast = false) {
+            const allNodesList = [...respuestasData];
+            const virtualKeys = ['m_gest', 'm_segu', 'm_bene'];
+            virtualKeys.forEach(vk => {
+                if (!allNodesList.some(n => n.clave === vk)) {
+                    allNodesList.push({ clave: vk, botones_json: JSON.stringify(defaultButtonsMap[vk] || []) });
+                }
+            });
+
+            // Extract branch children by analyzing outgoing buttons
+            const gestChildren = new Set(['v_colegio', 'v_instituto', 'f_matricula']);
+            const seguChildren = new Set(['acc_deudas', 'acc_notas', 'comp_enviar']);
+            const beneChildren = new Set(['f_horarios', 'f_ubicacion', 'f_asesor']);
+
+            // Find nodes linked from menus
+            allNodesList.forEach(node => {
+                const btns = getNodeButtons(node);
+                if (node.clave === 'm_gest') btns.forEach(b => { if (b.id && b.id !== 'inicio') gestChildren.add(b.id); });
+                if (node.clave === 'm_segu') btns.forEach(b => { if (b.id && b.id !== 'inicio') seguChildren.add(b.id); });
+                if (node.clave === 'm_bene') btns.forEach(b => { if (b.id && b.id !== 'inicio') beneChildren.add(b.id); });
+            });
+
+            const newPos = {};
+
+            // Column 1: Root & Triggers (x: 60)
+            newPos['bienvenida'] = { x: 60, y: 60 };
+            newPos['inicio'] = { x: 60, y: 60 + getNodeEstimatedHeight('bienvenida') + 24 };
+
+            // Column 3: Branch 1 Children (Gestiones) (x: 900)
+            let currGestY = 60;
+            gestChildren.forEach(key => {
+                newPos[key] = { x: 900, y: currGestY };
+                currGestY += getNodeEstimatedHeight(key) + 18;
+            });
+
+            // Column 2: Branch 1 Menu
+            newPos['m_gest'] = { x: 480, y: 60 };
+
+            // Column 3: Branch 2 Children (Seguros) (x: 900)
+            let currSeguY = Math.max(380, currGestY + 50);
+            newPos['m_segu'] = { x: 480, y: currSeguY };
+            seguChildren.forEach(key => {
+                newPos[key] = { x: 900, y: currSeguY };
+                currSeguY += getNodeEstimatedHeight(key) + 18;
+            });
+
+            // Column 3: Branch 3 Children (Beneficios) (x: 900)
+            let currBeneY = Math.max(newPos['m_segu'].y + 280, currSeguY + 50);
+            newPos['m_bene'] = { x: 480, y: currBeneY };
+            beneChildren.forEach(key => {
+                newPos[key] = { x: 900, y: currBeneY };
+                currBeneY += getNodeEstimatedHeight(key) + 18;
+            });
+
+            // Column 4: Extra / Custom Free Nodes (x: 1320)
+            let extraY = 60;
+            allNodesList.forEach(node => {
+                if (!newPos[node.clave]) {
+                    newPos[node.clave] = { x: 1320, y: extraY };
+                    extraY += getNodeEstimatedHeight(node.clave) + 18;
+                }
+            });
+
+            nodePositions = newPos;
+            localStorage.setItem('gethi_node_positions', JSON.stringify(nodePositions));
+
+            // Dynamic Frame Boxes positioning matching exact branch bounding height
+            const gestHeight = Math.max(260, currGestY - 30);
+            const seguHeight = Math.max(260, currSeguY - newPos['m_segu'].y + 30);
+            const beneHeight = Math.max(260, currBeneY - newPos['m_bene'].y + 30);
+
+            const container = document.getElementById('branchFramesContainer');
+            if (container) {
+                container.innerHTML = `
+                    <div class="branch-frame-box gest" style="left: 450px; top: 30px; width: 800px; height: ${gestHeight}px;">
+                        <div class="branch-frame-title">📚 RAMA 1: VACANTES E INFORMES</div>
+                    </div>
+                    <div class="branch-frame-box segu" style="left: 450px; top: ${newPos['m_segu'].y - 30}px; width: 800px; height: ${seguHeight}px;">
+                        <div class="branch-frame-title">🎓 RAMA 2: ALUMNOS</div>
+                    </div>
+                    <div class="branch-frame-box bene" style="left: 450px; top: ${newPos['m_bene'].y - 30}px; width: 800px; height: ${beneHeight}px;">
+                        <div class="branch-frame-title">📍 RAMA 3: CONTACTO</div>
+                    </div>
+                `;
+            }
+
+            renderCards();
+            renderConnections();
+            if (shouldToast) showToast('✨ Flujo y ramas reorganizados automáticamente');
+        }
+
+        function autoOrganizeLayout() {
+            pushHistory();
+            computeAutoLayout(true);
+        }
+
+        let contextClickWorldX = 900;
+        let contextClickWorldY = 200;
+
+        function closeContextMenu() {
+            const menu = document.getElementById('canvasContextMenu');
+            if (menu) menu.style.display = 'none';
+        }
+
+        function createNewStepDirect() {
+            pushHistory();
+            closeContextMenu();
+            const timestamp = Date.now().toString().slice(-5);
+            const newClave = 'f_paso_' + timestamp;
+            const newTitle = '✨ Nuevo Paso (' + newClave + ')';
+            const newTexto = 'Hola! Este es un nuevo mensaje del chatbot. Escribe aquí la respuesta.';
+            const newButtons = [{ id: 'inicio', title: '🏠 Inicio' }];
+
+            const newObj = {
+                clave: newClave,
+                title: newTitle,
+                texto: newTexto,
+                link: '',
+                botones_json: JSON.stringify(newButtons)
+            };
+
+            respuestasData.push(newObj);
+            friendlyNamesMap[newClave] = newTitle;
+            categoryBadgesMap[newClave] = '✨ NUEVO PASO';
+            expandedCardKeys.add(newClave);
+
+            // Auto layout and position in workspace
+            computeAutoLayout(false);
+
+            // Persist to server backend
+            const formData = new FormData();
+            formData.append('csrf_token', '{{ csrf_token() }}');
+            formData.append('action', 'save');
+            formData.append('clave', newClave);
+            formData.append('titulo', newTitle);
+            formData.append('texto', newTexto);
+            formData.append('link', '');
+            formData.append('botones_json', JSON.stringify(newButtons));
+
+            fetch('/admin/editor', {
+                method: 'POST',
+                body: formData
+            }).then(() => {
+                const newCard = document.getElementById(`card-${newClave}`);
+                if (newCard) {
+                    panToCard(newCard);
+                    const titleInput = newCard.querySelector('.card-inline-title-input');
+                    if (titleInput) {
+                        titleInput.focus();
+                        titleInput.select();
+                    }
+                }
+                selectCard(newClave, false);
+                showToast(`✨ Nuevo paso [${newClave}] creado en el área de trabajo`);
+            });
+        }
+
+        function createStepAtContextPosition() {
+            pushHistory();
+            closeContextMenu();
+            const timestamp = Date.now().toString().slice(-5);
+            const newClave = 'f_paso_' + timestamp;
+            const newTitle = '✨ Nuevo Paso (' + newClave + ')';
+            const newTexto = 'Hola! Este es un nuevo mensaje del chatbot. Escribe aquí la respuesta.';
+            const newButtons = [{ id: 'inicio', title: '🏠 Inicio' }];
+
+            const newObj = {
+                clave: newClave,
+                title: newTitle,
+                texto: newTexto,
+                link: '',
+                botones_json: JSON.stringify(newButtons)
+            };
+
+            respuestasData.push(newObj);
+            friendlyNamesMap[newClave] = newTitle;
+            categoryBadgesMap[newClave] = '✨ NUEVO PASO';
+
+            nodePositions[newClave] = { 
+                x: Math.max(20, contextClickWorldX - 160), 
+                y: Math.max(20, contextClickWorldY - 25) 
+            };
+            localStorage.setItem('gethi_node_positions', JSON.stringify(nodePositions));
+
+            expandedCardKeys.add(newClave);
+            renderCards();
+            renderConnections();
+
+            // Persist to server backend
+            const formData = new FormData();
+            formData.append('csrf_token', '{{ csrf_token() }}');
+            formData.append('action', 'save');
+            formData.append('clave', newClave);
+            formData.append('titulo', newTitle);
+            formData.append('texto', newTexto);
+            formData.append('link', '');
+            formData.append('botones_json', JSON.stringify(newButtons));
+
+            fetch('/admin/editor', {
+                method: 'POST',
+                body: formData
+            }).then(() => {
+                selectCard(newClave, false);
+                showToast(`✨ Paso [${newClave}] creado en el lienzo`);
+                const cardEl = document.getElementById(`card-${newClave}`);
+                if (cardEl) {
+                    const titleInput = cardEl.querySelector('.card-inline-title-input');
+                    if (titleInput) {
+                        titleInput.focus();
+                        titleInput.select();
+                    }
+                }
+            });
+        }
+
+        function changeWireFilter(mode) {
+            wireFilterMode = mode;
+            renderConnections();
+            showToast(`👁️ Visualización: ${mode === 'selected' ? 'Solo al Seleccionar Tarjeta (100% Limpio)' : (mode === 'main' ? 'Flechas de Avance' : 'Todas las Flechas')}`);
+        }
+
+        function toggleGlobalCompactMode() {
+            compactViewMode = !compactViewMode;
+            const btnText = document.getElementById('compactModeText');
+            const btnIcon = document.getElementById('compactModeIcon');
+            
+            if (compactViewMode) {
+                expandedCardKeys.clear();
+                if (btnText) btnText.innerText = '🗂️ Solo Cabeceras';
+                if (btnIcon) btnIcon.className = 'fa-solid fa-compress';
+                showToast('🗂️ Vista Compacta activada: Solo cabeceras desplegadas');
+            } else {
+                respuestasData.forEach(r => expandedCardKeys.add(r.clave));
+                expandedCardKeys.add('m_gest');
+                expandedCardKeys.add('m_segu');
+                expandedCardKeys.add('m_bene');
+                if (btnText) btnText.innerText = '📑 Vista Expandida';
+                if (btnIcon) btnIcon.className = 'fa-solid fa-expand';
+                showToast('📑 Vista Expandida activada: Mostrando todos los detalles');
+            }
+            computeAutoLayout(false);
+        }
+
+        function toggleCardExpand(e, clave) {
+            if (e) e.stopPropagation();
+            if (expandedCardKeys.has(clave)) {
+                expandedCardKeys.delete(clave);
+            } else {
+                expandedCardKeys.add(clave);
+            }
+            computeAutoLayout(false);
+        }
+
+        function panToBranch(branchKey) {
+            if (branchKey === 'gest') { panX = -280; panY = -20; }
+            if (branchKey === 'segu') { panX = -280; panY = -(nodePositions['m_segu'] ? nodePositions['m_segu'].y - 60 : 340); }
+            if (branchKey === 'bene') { panX = -280; panY = -(nodePositions['m_bene'] ? nodePositions['m_bene'].y - 60 : 620); }
+            applyTransform();
+        }
+
+        function renderColumnHeaders() {
+            const container = document.getElementById('columnHeadersContainer');
+            container.innerHTML = '';
+            columnHeadersList.forEach(col => {
+                const header = document.createElement('div');
+                header.className = 'canvas-column-header';
+                header.style.left = `${col.x}px`;
+                header.innerHTML = `
+                    <span>${col.title}</span>
+                    <button class="btn-add-in-col" onclick="createNewStepDirect()"><i class="fa-solid fa-plus"></i> Crear Paso</button>
+                `;
+                container.appendChild(header);
+            });
+        }
+
+        /* --- Render Cards --- */
+        function renderCards() {
+            const container = document.getElementById('cardsContainer');
+            container.innerHTML = '';
+
+            const virtualNodes = [
+                { clave: 'm_gest', title: '📚 Vacantes e informes', texto: 'Vacantes e informes', buttons: defaultButtonsMap['m_gest'] },
+                { clave: 'm_segu', title: '🎓 Servicios para alumnos', texto: 'Servicios para alumnos', buttons: defaultButtonsMap['m_segu'] },
+                { clave: 'm_bene', title: '📍 Contacto', texto: 'Contacto', buttons: defaultButtonsMap['m_bene'] }
+            ];
+
+            const allNodes = [...respuestasData];
+            virtualNodes.forEach(vn => {
+                if (!allNodes.some(n => n.clave === vn.clave)) {
+                    allNodes.push({ clave: vn.clave, texto: vn.texto, link: '', botones_json: JSON.stringify(vn.buttons), isVirtual: true });
+                }
+            });
+
+            let customY = 60;
+            allNodes.forEach(item => {
+                const card = createCardElement(item);
+                
+                let pos = nodePositions[item.clave] || defaultPositions[item.clave];
+                if (!pos) {
+                    pos = { x: 1320, y: customY };
+                    customY += 80;
+                }
+
+                card.style.left = `${pos.x}px`;
+                card.style.top = `${pos.y}px`;
+
+                container.appendChild(card);
+            });
+        }
+
+        function createCardElement(item) {
+            const card = document.createElement('div');
+            const isExpanded = expandedCardKeys.has(item.clave) || (!compactViewMode && !expandedCardKeys.has(item.clave + '_collapsed'));
+
+            card.className = `manychat-card ${isExpanded ? 'expanded-card' : 'compact-card'} ${item.clave === activeKey ? 'selected' : ''}`;
+            card.id = `card-${item.clave}`;
+            card.setAttribute('data-clave', item.clave);
+
+            // Hover preview listeners
+            card.onmouseenter = () => {
+                if (!isDragConnecting) {
+                    hoveredKey = item.clave;
+                    renderConnections();
+                }
+            };
+            card.onmouseleave = () => {
+                if (!isDragConnecting) {
+                    hoveredKey = null;
+                    renderConnections();
+                }
+            };
+
+            const buttons = getNodeButtons(item);
+            let buttonsHtml = '';
+            let headerHandlesHtml = '';
+
+            buttons.forEach((b, idx) => {
+                let targetBadge = '';
+                if (b.id) {
+                    let cleanId = (b.id === 'ir_inicio') ? 'inicio' : b.id;
+                    const friendlyName = getFriendlyTitle(cleanId);
+                    targetBadge = `<span class="btn-target-badge" onclick="navigateToTargetCard(event, '${cleanId}')" title="Clic para enfocar destino: ${escapeHtml(friendlyName)}">➔ ${escapeHtml(friendlyName)}</span>`;
+                }
+
+                let topPercent = 50;
+                if (buttons.length === 2) topPercent = (idx === 0) ? 30 : 70;
+                if (buttons.length === 3) topPercent = (idx === 0) ? 22 : (idx === 1 ? 50 : 78);
+
+                headerHandlesHtml += `
+                    <div class="handle-output handle-output-header" id="handle-out-header-${item.clave}-${idx}" data-target="${b.id}" style="top: ${topPercent}%;" onmousedown="startDragConnect(event, '${item.clave}', ${idx})" title="Conector: ${b.title} (Arrastra para enlazar)"></div>
+                `;
+
+                buttonsHtml += `
+                    <div class="card-button-item" onclick="onCardButtonClick(event, '${item.clave}', '${b.id}', '${b.title}', ${idx})">
+                        <div style="display:flex; align-items:center; flex:1; overflow:hidden;">
+                            <span class="btn-edit-connector" onclick="openButtonPopover(event, '${item.clave}', ${idx})" title="Editar este conector en la tarjeta"><i class="fa-solid fa-pen"></i></span>
+                            <span class="btn-delete-connector" onclick="deleteConnectorDirect(event, '${item.clave}', ${idx})" title="Eliminar Conector"><i class="fa-solid fa-trash-can"></i></span>
+                            <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${b.title}</span>
+                            ${targetBadge}
+                        </div>
+                        <div class="handle-output handle-output-body" id="handle-out-body-${item.clave}-${idx}" data-target="${b.id}" onmousedown="startDragConnect(event, '${item.clave}', ${idx})" title="Arrastra hacia otra tarjeta para conectar"></div>
+                    </div>
+                `;
+            });
+
+            const isStart = (item.clave === 'bienvenida' || item.clave === 'inicio');
+            const displayTitle = item.title || getFriendlyTitle(item.clave);
+
+            card.innerHTML = `
+                ${isStart ? '<div class="card-start-badge"><i class="fa-solid fa-flag-checkered"></i> Paso Inicial</div>' : ''}
+                <div class="handle-input" id="handle-in-${item.clave}" title="Entrada a esta tarjeta"></div>
+                ${headerHandlesHtml}
+
+                <div class="card-header" onmousedown="startCardDrag(event, '${item.clave}')" onclick="onCardHeaderClick(event, '${item.clave}')">
+                    <div class="card-title-group" style="flex:1; overflow:hidden; margin-right:6px;">
+                        <i class="fa-solid fa-cube" style="flex-shrink:0;"></i>
+                        <input type="text" class="card-inline-title-input" value="${escapeHtml(displayTitle)}" 
+                            onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" 
+                            onchange="saveCardTitleInline('${item.clave}', this.value)" 
+                            title="Haz clic para editar el nombre de este paso">
+                    </div>
+                    <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+                        <span class="card-category-tag">${getCategoryBadge(item.clave)}</span>
+                        ${!isStart ? `<button type="button" class="btn-card-delete-direct" onclick="deleteCardDirectly(event, '${item.clave}')" title="Eliminar este paso"><i class="fa-solid fa-trash-can"></i></button>` : ''}
+                        <button type="button" class="btn-card-expand-toggle" onclick="toggleCardExpand(event, '${item.clave}')" title="${isExpanded ? 'Plegar' : 'Desplegar'} detalle">
+                            <i class="fa-solid ${isExpanded ? 'fa-chevron-up' : 'fa-chevron-down'}"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card-metrics-row">
+                    <div class="metric-box">Enviados <div class="metric-val">100%</div></div>
+                    <div class="metric-box">CTR Clics <div class="metric-val" style="color:var(--accent-primary);">84%</div></div>
+                </div>
+
+                <div class="card-body-editor">
+                    <div style="font-size:10px; font-weight:700; color:var(--text-sub); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px; display:flex; align-items:center; gap:4px;">
+                        <i class="fa-brands fa-whatsapp" style="color:#00a884; font-size:12px;"></i> Mensaje de WhatsApp:
+                    </div>
+                    <textarea class="card-inline-textarea" placeholder="Escribe aquí la respuesta que dará el bot..."
+                        onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"
+                        onchange="saveCardTextInline('${item.clave}', this.value)">${escapeHtml(item.texto || '')}</textarea>
+                </div>
+
+                <div class="card-inline-link-box">
+                    <i class="fa-solid fa-link" style="font-size:11px; color:#38bdf8;" title="Enlace URL Opcional"></i>
+                    <input type="text" class="card-inline-link-input" placeholder="Enlace / Formulario Opcional (https://...)" 
+                        value="${escapeHtml(item.link || '')}"
+                        onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"
+                        onchange="saveCardLinkInline('${item.clave}', this.value)"
+                        title="Enlace o formulario web opcional asociado a este paso">
+                </div>
+
+                <div class="card-buttons-section">
+                    ${buttonsHtml}
+                    <button class="card-add-button-row" onclick="addDirectButton('${item.clave}')"><i class="fa-solid fa-plus-circle"></i> Agregar Conector / Botón</button>
+                </div>
+            `;
+
+            return card;
+        }
+
+        function onCardHeaderClick(e, clave) {
+            if (e.target.closest('.btn-card-expand-toggle') || e.target.closest('.handle-output-header') || e.target.closest('.btn-card-delete-direct') || e.target.closest('.card-inline-title-input')) return;
+            selectCard(clave, false);
+        }
+
+        function saveCardTitleInline(clave, newTitle) {
+            newTitle = newTitle.trim();
+            if (!newTitle) return;
+            pushHistory();
+            let item = respuestasData.find(r => r.clave === clave);
+            if (item) {
+                item.title = newTitle;
+            } else {
+                item = { clave: clave, title: newTitle, texto: '', link: '', botones_json: '[]' };
+                respuestasData.push(item);
+            }
+            friendlyNamesMap[clave] = newTitle;
+
+            // Mirror in localStorage
+            const customMap = JSON.parse(localStorage.getItem('gethi_custom_titles') || '{}');
+            customMap[clave] = newTitle;
+            localStorage.setItem('gethi_custom_titles', JSON.stringify(customMap));
+
+            // Persist to database backend
+            const formData = new FormData();
+            formData.append('csrf_token', '{{ csrf_token() }}');
+            formData.append('action', 'save');
+            formData.append('clave', clave);
+            formData.append('titulo', newTitle);
+            formData.append('texto', item.texto || 'Hola! Este es un nuevo mensaje del chatbot.');
+            formData.append('link', item.link || '');
+            formData.append('botones_json', item.botones_json || '[]');
+
+            fetch('/admin/editor', {
+                method: 'POST',
+                body: formData
+            }).then(() => {
+                showToast(`💾 Título guardado: "${newTitle}"`);
+                renderConnections();
+            });
+        }
+
+        function saveCardTextInline(clave, newText) {
+            pushHistory();
+            let item = respuestasData.find(r => r.clave === clave);
+            if (item) {
+                item.texto = newText;
+            } else {
+                item = { clave: clave, title: getFriendlyTitle(clave), texto: newText, link: '', botones_json: '[]' };
+                respuestasData.push(item);
+            }
+
+            const formData = new FormData();
+            formData.append('csrf_token', '{{ csrf_token() }}');
+            formData.append('action', 'save');
+            formData.append('clave', clave);
+            formData.append('titulo', item.title || getFriendlyTitle(clave));
+            formData.append('texto', newText);
+            formData.append('link', item.link || '');
+            formData.append('botones_json', item.botones_json || '[]');
+
+            fetch('/admin/editor', {
+                method: 'POST',
+                body: formData
+            }).then(() => {
+                showToast('💾 Mensaje de WhatsApp guardado');
+            });
+        }
+
+        function saveCardLinkInline(clave, newLink) {
+            pushHistory();
+            let item = respuestasData.find(r => r.clave === clave);
+            if (item) {
+                item.link = newLink.trim();
+            } else {
+                item = { clave: clave, title: getFriendlyTitle(clave), texto: '', link: newLink.trim(), botones_json: '[]' };
+                respuestasData.push(item);
+            }
+
+            const formData = new FormData();
+            formData.append('csrf_token', '{{ csrf_token() }}');
+            formData.append('action', 'save');
+            formData.append('clave', clave);
+            formData.append('titulo', item.title || getFriendlyTitle(clave));
+            formData.append('texto', item.texto || '');
+            formData.append('link', item.link);
+            formData.append('botones_json', item.botones_json || '[]');
+
+            fetch('/admin/editor', {
+                method: 'POST',
+                body: formData
+            }).then(() => {
+                showToast('💾 Enlace web guardado');
+            });
+        }
+
+        async function deleteCardDirectly(e, clave) {
+            if (e) e.stopPropagation();
+            if (clave === 'bienvenida' || clave === 'inicio') {
+                await customAlert({
+                    title: 'Acción no permitida',
+                    message: 'No se puede eliminar un paso raíz inicial.',
+                    icon: 'fa-triangle-exclamation',
+                    iconColor: '#f59e0b'
+                });
+                return;
+            }
+            const friendlyName = getFriendlyTitle(clave);
+            const confirmed = await customConfirm({
+                title: 'Eliminar paso',
+                message: `¿Estás seguro de eliminar el paso "<strong>${friendlyName}</strong>" [<code>${clave}</code>]?`,
+                confirmText: 'Sí, eliminar',
+                cancelText: 'Cancelar',
+                isDanger: true,
+                icon: 'fa-trash-can'
+            });
+            if (!confirmed) {
+                return;
+            }
+            pushHistory();
+
+            // Remove from local memory
+            const idx = respuestasData.findIndex(r => r.clave === clave);
+            if (idx !== -1) respuestasData.splice(idx, 1);
+            delete nodePositions[clave];
+            localStorage.setItem('gethi_node_positions', JSON.stringify(nodePositions));
+
+            // Remove any outgoing buttons pointing to this deleted clave across all other nodes
+            respuestasData.forEach(r => {
+                let btns = getNodeButtons(r);
+                let changed = false;
+                btns.forEach(b => {
+                    if (b.id === clave) {
+                        b.id = 'inicio';
+                        changed = true;
+                    }
+                });
+                if (changed) {
+                    r.botones_json = JSON.stringify(btns);
+                }
+            });
+
+            // Send POST delete to server
+            const formData = new FormData();
+            formData.append('csrf_token', '{{ csrf_token() }}');
+            formData.append('action', 'delete');
+            formData.append('clave', clave);
+
+            fetch('/admin/editor', {
+                method: 'POST',
+                body: formData
+            }).then(() => {
+                showToast(`🗑️ Paso [${clave}] eliminado correctamente`);
+                deselectCard();
+                computeAutoLayout(false);
+            });
+        }
+
+        function navigateToTargetCard(e, targetKey) {
+            if (e) e.stopPropagation();
+            const targetCard = document.getElementById(`card-${targetKey}`);
+            if (targetCard) {
+                panToCard(targetCard);
+                selectCard(targetKey);
+            }
+        }
+
+        function getNodeButtons(item) {
+            if (item.botones_json) {
+                try {
+                    const parsed = JSON.parse(item.botones_json);
+                    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                } catch(e) {}
+            }
+            return defaultButtonsMap[item.clave] || [{ id: 'inicio', title: '🏠 Inicio' }];
+        }
+
+        /* --- Draw Bezier Connections: STRICT CLEAN MODE WITHOUT REDUNDANT RETURN ARROWS --- */
+        function renderConnections() {
+            const svg = document.getElementById('connectionsSvg');
+            svg.querySelectorAll('.connection-path, .connection-hit-area').forEach(p => p.remove());
+            document.querySelectorAll('.line-delete-badge').forEach(b => b.remove());
+            document.querySelectorAll('.manychat-card').forEach(c => c.classList.remove('connected-target-card'));
+
+            const targetFocusKey = hoveredKey || activeKey;
+            if (!targetFocusKey) return; // 0 lines if nothing selected or hovered!
+
+            const drawnTargets = new Set();
+            const sourceCard = document.getElementById(`card-${targetFocusKey}`);
+            if (!sourceCard) return;
+
+            const sourceKey = targetFocusKey;
+            const isCompact = sourceCard.classList.contains('compact-card');
+            const outHandles = sourceCard.querySelectorAll(isCompact ? '.handle-output-header' : '.handle-output-body');
+
+            outHandles.forEach((outHandle, idx) => {
+                let targetKey = outHandle.getAttribute('data-target');
+                if (targetKey === 'ir_inicio') targetKey = 'inicio';
+                if (!targetKey || targetKey === sourceKey) return;
+
+                // ANTI-SATURATION FILTER: Omit redundant backward return lines to 'inicio' or 'bienvenida' from leaf nodes
+                // Leaf nodes already display the clear badge "➔ 🏠 Inicio"
+                const isRedundantReturn = (targetKey === 'inicio' || targetKey === 'bienvenida') && sourceKey.startsWith('f_');
+                if (isRedundantReturn && wireFilterMode !== 'all') {
+                    return; // Keep canvas super clean!
+                }
+
+                // STRICT RULE: Exactly 1 arrow per target card!
+                if (drawnTargets.has(targetKey)) return;
+
+                const inHandle = document.getElementById(`handle-in-${targetKey}`);
+                if (inHandle) {
+                    const drawn = drawCurve(svg, outHandle, inHandle, true, sourceKey, targetKey, idx);
+                    if (drawn) {
+                        drawnTargets.add(targetKey);
+
+                        // Highlight target card connected to selected/hovered card
+                        const targetCard = document.getElementById(`card-${targetKey}`);
+                        if (targetCard && !targetCard.classList.contains('selected')) {
+                            targetCard.classList.add('connected-target-card');
+                        }
+                    }
+                }
+            });
+        }
+
+        function drawCurve(svg, outEl, inEl, isActive, sourceKey, targetKey, btnIndex) {
+            const worldRect = document.getElementById('world').getBoundingClientRect();
+            const outRect = outEl.getBoundingClientRect();
+            const inRect = inEl.getBoundingClientRect();
+
+            const x1 = (outRect.left + outRect.width/2 - worldRect.left) / zoomLevel;
+            const y1 = (outRect.top + outRect.height/2 - worldRect.top) / zoomLevel;
+
+            const x2 = (inRect.left + inRect.width/2 - worldRect.left) / zoomLevel;
+            const y2 = (inRect.top + inRect.height/2 - worldRect.top) / zoomLevel;
+
+            const isReturnWire = (x2 <= x1 + 20);
+
+            // In clean mode, omit backward return curves (x2 <= x1) unless active/hovered
+            if (wireFilterMode !== 'all' && isReturnWire && !isActive) {
+                return false;
+            }
+
+            const deltaX = Math.abs(x2 - x1) * 0.5;
+            const controlX1 = x1 + Math.max(deltaX, 80);
+            const controlX2 = x2 - Math.max(deltaX, 80);
+
+            const pathD = `M ${x1} ${y1} C ${controlX1} ${y1}, ${controlX2} ${y2}, ${x2} ${y2}`;
+
+            // 1. Transparent Hit Area for easy hover/clicking
+            const hitPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            hitPath.setAttribute('d', pathD);
+            hitPath.setAttribute('class', 'connection-hit-area');
+
+            // 2. Visible Bezier Curve
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', pathD);
+            path.setAttribute('class', `connection-path ${isActive ? 'active' : ''} ${isReturnWire ? 'return-wire' : ''}`);
+            path.setAttribute('data-source', sourceKey);
+            path.setAttribute('data-target', targetKey);
+            path.setAttribute('marker-end', isActive ? 'url(#arrowhead)' : 'url(#arrowhead-gray)');
+
+            svg.appendChild(hitPath);
+            svg.appendChild(path);
+
+            // 3. Floating Delete Badge on Connector Midpoint (shown on hover)
+            const midX = (x1 + x2) / 2;
+            const midY = (y1 + y2) / 2;
+
+            const deleteBadge = document.createElement('div');
+            deleteBadge.className = 'line-delete-badge';
+            deleteBadge.style.left = `${midX}px`;
+            deleteBadge.style.top = `${midY}px`;
+            deleteBadge.innerHTML = `<i class="fa-solid fa-xmark"></i> Eliminar`;
+            deleteBadge.onclick = (e) => {
+                e.stopPropagation();
+                deleteConnectorDirect(e, sourceKey, btnIndex);
+            };
+
+            deleteBadge.style.display = 'none';
+
+            hitPath.onmouseenter = () => { deleteBadge.style.display = 'flex'; };
+            hitPath.onmouseleave = (e) => {
+                if (!e.relatedTarget || !e.relatedTarget.classList.contains('line-delete-badge')) {
+                    deleteBadge.style.display = 'none';
+                }
+            };
+            deleteBadge.onmouseleave = () => { deleteBadge.style.display = 'none'; };
+
+            document.getElementById('world').appendChild(deleteBadge);
+            return true;
+        }
+
+        /* --- CONTEXTUAL IN-CARD BUTTON POPOVER SYSTEM --- */
+        let popoverSourceKey = null;
+        let popoverButtonIdx = null;
+
+        function openButtonPopover(e, sourceKey, btnIdx) {
+            if (e) {
+                e.stopPropagation();
+                e.preventDefault();
+            }
+
+            popoverSourceKey = sourceKey;
+            popoverButtonIdx = btnIdx;
+            expandedCardKeys.add(sourceKey); // Mantener la tarjeta expandida y visible
+
+            const item = respuestasData.find(r => r.clave === sourceKey) || { clave: sourceKey, botones_json: '' };
+            const buttons = getNodeButtons(item);
+            const btn = buttons[btnIdx] || { id: 'inicio', title: 'Botón' };
+
+            const popover = document.getElementById('cardBtnPopover');
+            const titleInput = document.getElementById('popoverBtnTitle');
+            const targetSelect = document.getElementById('popoverBtnTarget');
+
+            // Evitar que cualquier clic dentro del popover se propague al canvas
+            popover.onmousedown = (ev) => ev.stopPropagation();
+            popover.onmouseup = (ev) => ev.stopPropagation();
+            popover.onclick = (ev) => ev.stopPropagation();
+
+            titleInput.value = btn.title || '';
+
+            // Populate all available destination options
+            let optionsHtml = '';
+            optionsHtml += `<optgroup label="🚀 Menús Principales">`;
+            optionsHtml += `<option value="inicio" ${btn.id === 'inicio' || btn.id === 'ir_inicio' ? 'selected' : ''}>🏠 Menú principal</option>`;
+            optionsHtml += `<option value="m_gest" ${btn.id === 'm_gest' ? 'selected' : ''}>📚 Vacantes e informes</option>`;
+            optionsHtml += `<option value="m_segu" ${btn.id === 'm_segu' ? 'selected' : ''}>🎓 Servicios para alumnos</option>`;
+            optionsHtml += `<option value="m_bene" ${btn.id === 'm_bene' ? 'selected' : ''}>📍 Contacto</option>`;
+            optionsHtml += `</optgroup>`;
+
+            optionsHtml += `<optgroup label="📄 Pasos y Respuestas Disponibles">`;
+            respuestasData.forEach(r => {
+                if (r.clave !== sourceKey && !['inicio', 'm_gest', 'm_segu', 'm_bene'].includes(r.clave)) {
+                    optionsHtml += `<option value="${r.clave}" ${r.clave === btn.id ? 'selected' : ''}>➡️ ${getFriendlyTitle(r.clave)} [${r.clave}]</option>`;
+                }
+            });
+            optionsHtml += `</optgroup>`;
+
+            targetSelect.innerHTML = optionsHtml;
+
+            // Only suggest destination title if the button title is empty or a generic placeholder
+            targetSelect.onchange = () => {
+                const currentVal = titleInput.value.trim();
+                if (!currentVal || currentVal === 'Botón' || currentVal.includes('Nuevo Conector') || currentVal === '➡️ Nuevo Conector') {
+                    const targetKey = targetSelect.value;
+                    const friendly = getFriendlyTitle(targetKey);
+                    titleInput.value = friendly.replace(/^[^\wáéíóúÁÉÍÓÚñÑ]+/, '').trim() || friendly;
+                }
+            };
+
+            // Position popover right over or beside the card button
+            const cardEl = document.getElementById(`card-${sourceKey}`);
+            if (cardEl) {
+                const cardLeft = parseFloat(cardEl.style.left) || 0;
+                const cardTop = parseFloat(cardEl.style.top) || 0;
+                
+                popover.style.left = `${cardLeft + 330}px`;
+                popover.style.top = `${cardTop + (btnIdx * 45) + 30}px`;
+                popover.style.display = 'flex';
+                popover.style.zIndex = '500';
+            }
+
+            selectCard(sourceKey, false);
+        }
+
+        function closeButtonPopover() {
+            const popover = document.getElementById('cardBtnPopover');
+            if (popover) popover.style.display = 'none';
+            popoverSourceKey = null;
+            popoverButtonIdx = null;
+        }
+
+        function savePopoverConnector() {
+            if (!popoverSourceKey || popoverButtonIdx === null) return;
+            const newTitle = document.getElementById('popoverBtnTitle').value.trim();
+            const newTarget = document.getElementById('popoverBtnTarget').value;
+
+            if (!newTitle) {
+                customAlert({
+                    title: 'Campo requerido',
+                    message: 'Ingresa una etiqueta para el botón.',
+                    icon: 'fa-pen-to-square',
+                    iconColor: '#f59e0b'
+                });
+                return;
+            }
+            pushHistory();
+
+            const item = respuestasData.find(r => r.clave === popoverSourceKey) || { clave: popoverSourceKey, botones_json: '' };
+            let buttons = getNodeButtons(item);
+            
+            if (buttons[popoverButtonIdx]) {
+                buttons[popoverButtonIdx].title = newTitle;
+                buttons[popoverButtonIdx].id = newTarget;
+            }
+
+            saveNodeButtons(popoverSourceKey, buttons);
+
+            // Auto-add return connector button in destination card pointing back to source
+            if (newTarget && newTarget !== 'inicio' && newTarget !== 'bienvenida' && newTarget !== popoverSourceKey) {
+                const targetItem = respuestasData.find(r => r.clave === newTarget);
+                if (targetItem) {
+                    let targetButtons = getNodeButtons(targetItem);
+                    const hasBackToSource = targetButtons.some(tb => tb.id === popoverSourceKey);
+                    if (!hasBackToSource) {
+                        if (targetButtons.length < 3) {
+                            targetButtons.unshift({ id: popoverSourceKey, title: '⬅️ Volver' });
+                        } else {
+                            targetButtons[0] = { id: popoverSourceKey, title: '⬅️ Volver' };
+                        }
+                        saveNodeButtons(newTarget, targetButtons);
+                    }
+                }
+            }
+
+            closeButtonPopover();
+            showToast(`✅ Conector actualizado: "${newTitle}" ➔ ${getFriendlyTitle(newTarget)}`);
+        }
+
+        async function deletePopoverConnector() {
+            if (!popoverSourceKey || popoverButtonIdx === null) return;
+            const confirmed = await customConfirm({
+                title: 'Eliminar conector',
+                message: '¿Estás seguro de eliminar este conector?',
+                confirmText: 'Eliminar',
+                cancelText: 'Cancelar',
+                isDanger: true,
+                icon: 'fa-link-slash'
+            });
+            if (!confirmed) return;
+            pushHistory();
+            const item = respuestasData.find(r => r.clave === popoverSourceKey) || { clave: popoverSourceKey, botones_json: '' };
+            let buttons = getNodeButtons(item);
+            buttons.splice(popoverButtonIdx, 1);
+            saveNodeButtons(popoverSourceKey, buttons);
+            closeButtonPopover();
+            showToast('🗑️ Conector eliminado');
+        }
+
+        /* --- DIRECT CONNECTOR MANAGEMENT (ADD / DELETE) --- */
+        async function deleteConnectorDirect(e, sourceKey, btnIdx) {
+            if (e) e.stopPropagation();
+            const item = respuestasData.find(r => r.clave === sourceKey) || { clave: sourceKey, botones_json: '' };
+            let buttons = getNodeButtons(item);
+
+            const btnTitle = buttons[btnIdx] ? buttons[btnIdx].title : 'Conector';
+
+            const confirmed = await customConfirm({
+                title: 'Eliminar conector',
+                message: `¿Deseas eliminar el conector "<strong>${btnTitle}</strong>" en [<code>${getFriendlyTitle(sourceKey)}</code>]?`,
+                confirmText: 'Eliminar',
+                cancelText: 'Cancelar',
+                isDanger: true,
+                icon: 'fa-link-slash'
+            });
+            if (confirmed) {
+                pushHistory();
+                buttons.splice(btnIdx, 1);
+                saveNodeButtons(sourceKey, buttons);
+                showToast(`🗑️ Conector "${btnTitle}" eliminado`);
+            }
+        }
+
+        function addDirectButton(sourceKey) {
+            const item = respuestasData.find(r => r.clave === sourceKey) || { clave: sourceKey, botones_json: '' };
+            let buttons = getNodeButtons(item);
+            if (buttons.length >= 3) {
+                customAlert({
+                    title: 'Límite de botones',
+                    message: 'Máximo 3 botones permitidos por WhatsApp.',
+                    icon: 'fa-triangle-exclamation',
+                    iconColor: '#f59e0b'
+                });
+                return;
+            }
+
+            pushHistory();
+            buttons.push({ id: 'inicio', title: '➡️ Nuevo Conector' });
+            saveNodeButtons(sourceKey, buttons);
+            showToast(`➕ Nuevo conector añadido a ${getFriendlyTitle(sourceKey)}`);
+
+            // Open popover directly for the newly added button
+            setTimeout(() => {
+                openButtonPopover(null, sourceKey, buttons.length - 1);
+            }, 100);
+        }
+
+        function saveNodeButtons(clave, buttonsArray) {
+            let item = respuestasData.find(r => r.clave === clave);
+            if (item) {
+                item.botones_json = JSON.stringify(buttonsArray);
+            } else {
+                respuestasData.push({ clave: clave, texto: 'Navegación del bot', link: '', botones_json: JSON.stringify(buttonsArray) });
+            }
+
+            const formData = new FormData();
+            formData.append('csrf_token', '{{ csrf_token() }}');
+            formData.append('action', 'save');
+            formData.append('clave', clave);
+            formData.append('titulo', (item && item.title) ? item.title : getFriendlyTitle(clave));
+            formData.append('texto', item ? item.texto : 'Navegación del bot');
+            formData.append('link', item ? item.link : '');
+            formData.append('botones_json', JSON.stringify(buttonsArray));
+
+            fetch('/admin/editor', {
+                method: 'POST',
+                body: formData
+            }).then(() => {
+                computeAutoLayout(false);
+            });
+        }
+
+        /* --- VISUAL DRAG-TO-CONNECT LINE CREATION --- */
+        let isDragConnecting = false;
+        let dragConnectSourceKey = null;
+        let dragConnectButtonIdx = null;
+        let tempSvgPath = null;
+
+        function startDragConnect(e, sourceKey, btnIdx) {
+            if (e) {
+                e.stopPropagation();
+                e.preventDefault();
+            }
+
+            isDragConnecting = true;
+            dragConnectSourceKey = sourceKey;
+            dragConnectButtonIdx = btnIdx;
+
+            const svg = document.getElementById('connectionsSvg');
+            if (tempSvgPath) tempSvgPath.remove();
+            tempSvgPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            tempSvgPath.setAttribute('class', 'connection-path active');
+            tempSvgPath.setAttribute('style', 'stroke-dasharray: 6; stroke: #00a884; stroke-width: 4px; pointer-events: none;');
+            svg.appendChild(tempSvgPath);
+            document.body.style.cursor = 'crosshair';
+        }
+
+        /* --- Click Button in Card: IN-CARD EDIT OR PLAY SIMULATOR --- */
+        function onCardButtonClick(e, sourceKey, targetKey, btnTitle, btnIdx) {
+            if (e) e.stopPropagation();
+            if (targetKey === 'ir_inicio') targetKey = 'inicio';
+
+            if (playMode) {
+                animatePulseBetween(sourceKey, targetKey);
+                const targetCard = document.getElementById(`card-${targetKey}`);
+                if (targetCard) {
+                    document.querySelectorAll('.manychat-card').forEach(c => c.classList.remove('target-highlight'));
+                    targetCard.classList.add('target-highlight');
+                    setTimeout(() => targetCard.classList.remove('target-highlight'), 3000);
+                    panToCard(targetCard);
+                }
+                selectCard(targetKey);
+                appendSimulatorStep(sourceKey, targetKey, btnTitle);
+            } else {
+                // In normal builder mode: Open in-card contextual editor right here on this card
+                openButtonPopover(e, sourceKey, btnIdx);
+            }
+        }
+
+        function animatePulseBetween(sourceKey, targetKey) {
+            const path = document.querySelector(`.connection-path[data-source="${sourceKey}"][data-target="${targetKey}"]`);
+            if (!path) return;
+
+            const svg = document.getElementById('connectionsSvg');
+            const particle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            particle.setAttribute('class', 'pulse-particle');
+            particle.setAttribute('r', '8');
+            svg.appendChild(particle);
+
+            const pathLength = path.getTotalLength();
+            let start = null;
+            const duration = 750;
+
+            function step(timestamp) {
+                if (!start) start = timestamp;
+                const progress = (timestamp - start) / duration;
+                if (progress < 1) {
+                    const point = path.getPointAtLength(progress * pathLength);
+                    particle.setAttribute('cx', point.x);
+                    particle.setAttribute('cy', point.y);
+                    requestAnimationFrame(step);
+                } else {
+                    particle.remove();
+                }
+            }
+            requestAnimationFrame(step);
+        }
+
+        function panToCard(cardEl) {
+            const cardX = parseFloat(cardEl.style.left) || 0;
+            const cardY = parseFloat(cardEl.style.top) || 0;
+
+            const viewportWidth = document.getElementById('viewport').clientWidth;
+            const viewportHeight = document.getElementById('viewport').clientHeight;
+
+            panX = (viewportWidth / 2) - (cardX * zoomLevel) - (160 * zoomLevel);
+            panY = (viewportHeight / 2) - (cardY * zoomLevel) - (100 * zoomLevel);
+
+            applyTransform();
+        }
+
+        function panToColumn(xPos) {
+            const viewportWidth = document.getElementById('viewport').clientWidth;
+            panX = (viewportWidth / 2) - (xPos * zoomLevel) - (160 * zoomLevel);
+            applyTransform();
+        }
+
+        function panDirection(dir) {
+            const step = 320;
+            if (dir === 'left') panX += step;
+            if (dir === 'right') panX -= step;
+            if (dir === 'up') panY += step;
+            if (dir === 'down') panY -= step;
+            applyTransform();
+        }
+
+        /* --- PLAY MODE / PHONE SIMULATOR --- */
+        function togglePlayMode() {
+            playMode = !playMode;
+            const btn = document.getElementById('btnPlayMode');
+            const banner = document.getElementById('playBanner');
+            const simulator = document.getElementById('phoneSimulator');
+
+            if (playMode) {
+                btn.classList.add('play-active');
+                btn.innerHTML = '<i class="fa-solid fa-stop"></i> Detener Simulación';
+                banner.style.display = 'flex';
+                simulator.classList.remove('hidden');
+
+                const startKey = activeKey || 'bienvenida';
+                resetSimulatorChat(startKey);
+            } else {
+                btn.classList.remove('play-active');
+                btn.innerHTML = '<i class="fa-solid fa-play"></i> ▶️ Probar Flujo (Play Mode)';
+                banner.style.display = 'none';
+                simulator.classList.add('hidden');
+            }
+        }
+
+        function resetSimulatorChat(startKey) {
+            const phoneBody = document.getElementById('phoneChatBody');
+            phoneBody.innerHTML = '';
+            renderBotSimulatorBubble(startKey);
+
+            const startCard = document.getElementById(`card-${startKey}`);
+            if (startCard) panToCard(startCard);
+        }
+
+        function renderBotSimulatorBubble(nodeKey) {
+            const phoneBody = document.getElementById('phoneChatBody');
+            const item = respuestasData.find(r => r.clave === nodeKey) || { clave: nodeKey, texto: 'Navegación del bot', botones_json: '' };
+            const buttons = getNodeButtons(item);
+
+            let buttonsHtml = '<div class="sim-buttons-container">';
+            buttons.forEach(b => {
+                buttonsHtml += `<button class="sim-btn" onclick="onCardButtonClick(null, '${nodeKey}', '${b.id}', '${b.title}')">${b.title}</button>`;
+            });
+            buttonsHtml += '</div>';
+
+            let linkHtml = item.link ? `<div style="margin-top:8px;"><a href="${item.link}" target="_blank" style="color:#38bdf8; font-weight:bold;"><i class="fa-solid fa-external-link"></i> Abrir Enlace Formulario</a></div>` : '';
+
+            const botBubble = document.createElement('div');
+            botBubble.className = 'chat-bubble-bot';
+            botBubble.innerHTML = `
+                <div style="font-weight:bold; color:#00a884; font-size:11.5px; margin-bottom:4px;">${getFriendlyTitle(item.clave)}</div>
+                <div>${formatText(item.texto || '')}</div>
+                ${linkHtml}
+                ${buttonsHtml}
+            `;
+
+            phoneBody.appendChild(botBubble);
+            phoneBody.scrollTop = phoneBody.scrollHeight;
+        }
+
+        function appendSimulatorStep(sourceKey, targetKey, btnTitle) {
+            const phoneBody = document.getElementById('phoneChatBody');
+            
+            const userBubble = document.createElement('div');
+            userBubble.className = 'chat-bubble-user';
+            userBubble.innerText = btnTitle || targetKey;
+            phoneBody.appendChild(userBubble);
+
+            setTimeout(() => {
+                renderBotSimulatorBubble(targetKey);
+            }, 300);
+        }
+
+        /* --- Free Drag & Drop Card Handling & Drag-to-Connect Mouse Logic --- */
+        let draggedCardKey = null;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+
+        function startCardDrag(e, key) {
+            if (isDragConnecting || (e && e.target && (e.target.closest('.btn-card-expand-toggle') || e.target.closest('.handle-output-header')))) return;
+            e.stopPropagation();
+            draggedCardKey = key;
+
+            const card = document.getElementById(`card-${key}`);
+            const cardRect = card.getBoundingClientRect();
+
+            dragOffsetX = (e.clientX - cardRect.left) / zoomLevel;
+            dragOffsetY = (e.clientY - cardRect.top) / zoomLevel;
+
+            selectCard(key, false);
+        }
+
+        function setupPanZoomAndDrag() {
+            const viewport = document.getElementById('viewport');
+            const world = document.getElementById('world');
+
+            let isPanning = false;
+            let startPanX, startPanY;
+
+            function applyTransform() {
+                world.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
+                renderConnections();
+            }
+
+            viewport.oncontextmenu = (e) => {
+                if (e.target.closest('#cardBtnPopover') || e.target.closest('.card-btn-popover') || e.target.closest('.btn-edit-connector') || e.target.closest('.card-button-item') || e.target.closest('.inspector-drawer') || e.target.closest('.phone-simulator-widget') || e.target.closest('.column-jump-bar') || e.target.closest('.top-navbar') || e.target.closest('.editor-subbar') || e.target.closest('.canvas-controls')) {
+                    return;
+                }
+                e.preventDefault();
+
+                const worldRect = world.getBoundingClientRect();
+                contextClickWorldX = Math.round((e.clientX - worldRect.left) / zoomLevel);
+                contextClickWorldY = Math.round((e.clientY - worldRect.top) / zoomLevel);
+
+                const menu = document.getElementById('canvasContextMenu');
+                if (menu) {
+                    menu.style.left = `${e.clientX}px`;
+                    menu.style.top = `${e.clientY}px`;
+                    menu.style.display = 'flex';
+                }
+            };
+
+            viewport.onmousedown = (e) => {
+                if (e.target.closest('#canvasContextMenu') || e.target.closest('.canvas-context-menu')) {
+                    return;
+                }
+
+                closeContextMenu();
+
+                // Si el clic es dentro del popover, botones de conector, drawer o controles, ignorar para no interrumpir la edición
+                if (e.target.closest('#cardBtnPopover') || e.target.closest('.card-btn-popover') || e.target.closest('.btn-edit-connector') || e.target.closest('.card-button-item') || e.target.closest('.inspector-drawer') || e.target.closest('.phone-simulator-widget') || e.target.closest('.column-jump-bar') || e.target.closest('.top-navbar') || e.target.closest('.editor-subbar') || e.target.closest('.canvas-controls')) {
+                    return;
+                }
+
+                if (draggedCardKey || isDragConnecting) return;
+                
+                closeButtonPopover();
+
+                if (!e.target.closest('.manychat-card')) {
+                    deselectCard();
+                }
+
+                if (e.button === 0 || e.button === 1) {
+                    isPanning = true;
+                    viewport.classList.add('panning');
+                    startPanX = e.clientX - panX;
+                    startPanY = e.clientY - panY;
+                }
+            };
+
+            window.onmousemove = (e) => {
+                if (isDragConnecting && tempSvgPath) {
+                    const sourceCard = document.getElementById(`card-${dragConnectSourceKey}`);
+                    let outHandle = null;
+                    if (sourceCard) {
+                        const isCompact = sourceCard.classList.contains('compact-card');
+                        const handles = sourceCard.querySelectorAll(isCompact ? '.handle-output-header' : '.handle-output-body');
+                        outHandle = handles[dragConnectButtonIdx] || handles[0];
+                    }
+
+                    if (outHandle) {
+                        const worldRect = world.getBoundingClientRect();
+                        const outRect = outHandle.getBoundingClientRect();
+                        const x1 = (outRect.left + outRect.width/2 - worldRect.left) / zoomLevel;
+                        const y1 = (outRect.top + outRect.height/2 - worldRect.top) / zoomLevel;
+
+                        const x2 = (e.clientX - worldRect.left) / zoomLevel;
+                        const y2 = (e.clientY - worldRect.top) / zoomLevel;
+
+                        const deltaX = Math.abs(x2 - x1) * 0.5;
+                        tempSvgPath.setAttribute('d', `M ${x1} ${y1} C ${x1 + Math.max(deltaX, 60)} ${y1}, ${x2 - Math.max(deltaX, 60)} ${y2}, ${x2} ${y2}`);
+                    }
+
+                    // Highlight card currently hovered during drag
+                    const elemUnder = document.elementFromPoint(e.clientX, e.clientY);
+                    const targetCard = elemUnder ? elemUnder.closest('.manychat-card') : null;
+                    document.querySelectorAll('.manychat-card').forEach(c => c.classList.remove('drag-target-hover'));
+                    if (targetCard && targetCard.getAttribute('data-clave') !== dragConnectSourceKey) {
+                        targetCard.classList.add('drag-target-hover');
+                    }
+                    return;
+                }
+
+                if (draggedCardKey) {
+                    const worldRect = world.getBoundingClientRect();
+                    const newX = (e.clientX - worldRect.left) / zoomLevel - dragOffsetX;
+                    const newY = (e.clientY - worldRect.top) / zoomLevel - dragOffsetY;
+
+                    const card = document.getElementById(`card-${draggedCardKey}`);
+                    if (card) {
+                        card.style.left = `${Math.max(0, newX)}px`;
+                        card.style.top = `${Math.max(0, newY)}px`;
+
+                        nodePositions[draggedCardKey] = { x: Math.max(0, newX), y: Math.max(0, newY) };
+                        localStorage.setItem('gethi_node_positions', JSON.stringify(nodePositions));
+
+                        renderConnections();
+                    }
+                    return;
+                }
+
+                if (isPanning) {
+                    panX = e.clientX - startPanX;
+                    panY = e.clientY - startPanY;
+                    applyTransform();
+                }
+            };
+
+            window.onmouseup = (e) => {
+                if (isDragConnecting) {
+                    const elemUnder = document.elementFromPoint(e.clientX, e.clientY);
+                    const targetCard = elemUnder ? elemUnder.closest('.manychat-card') : null;
+                    if (targetCard) {
+                        const targetKey = targetCard.getAttribute('data-clave');
+                        if (targetKey && targetKey !== dragConnectSourceKey) {
+                            pushHistory();
+                            const item = respuestasData.find(r => r.clave === dragConnectSourceKey) || { clave: dragConnectSourceKey, botones_json: '' };
+                            let buttons = getNodeButtons(item);
+                            if (buttons[dragConnectButtonIdx]) {
+                                buttons[dragConnectButtonIdx].id = targetKey;
+                                const targetFriendly = getFriendlyTitle(targetKey);
+                                const cleanFriendly = targetFriendly.replace(/^[^\wáéíóúÁÉÍÓÚñÑ]+/, '').trim() || targetFriendly;
+                                // Auto inherit title if it was placeholder / generic
+                                if (!buttons[dragConnectButtonIdx].title || 
+                                    buttons[dragConnectButtonIdx].title.includes('Nuevo Conector') || 
+                                    buttons[dragConnectButtonIdx].title === 'Botón' ||
+                                    buttons[dragConnectButtonIdx].title.startsWith('➡️')) {
+                                    buttons[dragConnectButtonIdx].title = cleanFriendly;
+                                }
+                                saveNodeButtons(dragConnectSourceKey, buttons);
+
+                                // Auto-add return connector button in destination card pointing back to source
+                                const targetItem = respuestasData.find(r => r.clave === targetKey);
+                                if (targetItem && targetKey !== 'inicio' && targetKey !== 'bienvenida') {
+                                    let targetButtons = getNodeButtons(targetItem);
+                                    const hasBackToSource = targetButtons.some(tb => tb.id === dragConnectSourceKey);
+                                    if (!hasBackToSource) {
+                                        if (targetButtons.length < 3) {
+                                            targetButtons.unshift({ id: dragConnectSourceKey, title: '⬅️ Volver' });
+                                        } else {
+                                            targetButtons[0] = { id: dragConnectSourceKey, title: '⬅️ Volver' };
+                                        }
+                                        saveNodeButtons(targetKey, targetButtons);
+                                    }
+                                }
+
+                                showToast(`🔗 Conectado: "${buttons[dragConnectButtonIdx].title}" ➔ ${targetFriendly}`);
+                            }
+                        }
+                    }
+                    document.querySelectorAll('.manychat-card').forEach(c => c.classList.remove('drag-target-hover'));
+                    if (tempSvgPath) tempSvgPath.remove();
+                    isDragConnecting = false;
+                    dragConnectSourceKey = null;
+                    dragConnectButtonIdx = null;
+                    tempSvgPath = null;
+                    document.body.style.cursor = 'default';
+                }
+
+                isPanning = false;
+                draggedCardKey = null;
+                viewport.classList.remove('panning');
+            };
+
+            viewport.onwheel = (e) => {
+                e.preventDefault();
+                if (e.ctrlKey) {
+                    const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
+                    zoomLevel = Math.min(Math.max(zoomLevel * zoomFactor, 0.35), 1.8);
+                } else if (e.shiftKey) {
+                    panX -= e.deltaY * 1.2;
+                } else {
+                    panX -= e.deltaX * 1.1;
+                    panY -= e.deltaY * 1.1;
+                }
+                applyTransform();
+            };
+
+            window.zoomIn = () => { zoomLevel = Math.min(zoomLevel * 1.15, 1.8); applyTransform(); };
+            window.zoomOut = () => { zoomLevel = Math.max(zoomLevel * 0.85, 0.35); applyTransform(); };
+            window.resetZoom = () => { zoomLevel = 0.85; panX = 60; panY = 40; applyTransform(); };
+
+            window.applyTransform = applyTransform;
+            applyTransform();
+        }
+
+        function showToast(msg) {
+            document.querySelectorAll('.toast-notification').forEach(t => t.remove());
+            const toast = document.createElement('div');
+            toast.className = 'toast-notification';
+            toast.innerHTML = msg;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3500);
+        }
+
+        function deselectCard() {
+            activeKey = null;
+            hoveredKey = null;
+            closeButtonPopover();
+            closeContextMenu();
+            document.querySelectorAll('.manychat-card').forEach(c => {
+                c.classList.remove('selected');
+                c.classList.remove('connected-target-card');
+            });
+            closeDrawer();
+            renderConnections();
+        }
+
+        function selectCard(key, autoExpand = false) {
+            activeKey = key;
+            if (compactViewMode && key && autoExpand) {
+                expandedCardKeys.add(key);
+                renderCards();
+            }
+
+            document.querySelectorAll('.manychat-card').forEach(c => c.classList.remove('selected'));
+            const card = document.getElementById(`card-${key}`);
+            if (card) card.classList.add('selected');
+
+            const item = respuestasData.find(r => r.clave === key) || { clave: key, texto: '', link: '', botones_json: '' };
+            
+            document.getElementById('currentClave').value = item.clave;
+            document.getElementById('displayTitleInput').value = item.title || getFriendlyTitle(item.clave);
+            document.getElementById('displayCodeInput').value = item.clave;
+            document.getElementById('textoInput').value = item.texto || '';
+            document.getElementById('linkInput').value = item.link || '';
+
+            currentButtons = getNodeButtons(item);
+            renderButtonBuilder();
+            renderConnections();
+        }
+
+        function updateCardPreview() {
+            const rawText = document.getElementById('textoInput').value;
+            const card = document.getElementById(`card-${activeKey}`);
+            if (card) {
+                const snippet = card.querySelector('.card-body-snippet');
+                if (snippet) snippet.innerHTML = formatText(rawText);
+            }
+        }
+
+        /* --- Drawer Button Builder --- */
+        function renderButtonBuilder() {
+            const container = document.getElementById('buttonRowsContainer');
+            container.innerHTML = '';
+
+            currentButtons.forEach((btn, index) => {
+                const row = document.createElement('div');
+                row.className = 'btn-row';
+
+                let optionsHtml = '';
+                respuestasData.forEach(r => {
+                    optionsHtml += `<option value="${r.clave}" ${r.clave === btn.id ? 'selected' : ''}>➡️ ${getFriendlyTitle(r.clave)} [${r.clave}]</option>`;
+                });
+                optionsHtml += `<option value="inicio" ${btn.id === 'ir_inicio' || btn.id === 'inicio' ? 'selected' : ''}>🏠 Menú principal [inicio]</option>`;
+                optionsHtml += `<option value="m_gest" ${btn.id === 'm_gest' ? 'selected' : ''}>📚 Vacantes e informes [m_gest]</option>`;
+                optionsHtml += `<option value="m_segu" ${btn.id === 'm_segu' ? 'selected' : ''}>🎓 Servicios para alumnos [m_segu]</option>`;
+                optionsHtml += `<option value="m_bene" ${btn.id === 'm_bene' ? 'selected' : ''}>📍 Contacto [m_bene]</option>`;
+
+                row.innerHTML = `
+                    <input type="text" value="${btn.title}" placeholder="Etiqueta Botón" oninput="updateButtonData(${index}, 'title', this.value)" style="flex:1;">
+                    <select onchange="updateButtonData(${index}, 'id', this.value)" style="flex:1.2;">
+                        ${optionsHtml}
+                    </select>
+                    <button type="button" class="btn-danger" onclick="removeButtonRow(${index})" style="padding:4px 8px;"><i class="fa-solid fa-xmark"></i></button>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        function addButtonRow() {
+            if (currentButtons.length >= 3) {
+                customAlert({
+                    title: 'Límite de botones',
+                    message: 'Máximo 3 botones permitidos por WhatsApp.',
+                    icon: 'fa-triangle-exclamation',
+                    iconColor: '#f59e0b'
+                });
+                return;
+            }
+            currentButtons.push({ id: 'inicio', title: '🏠 Inicio' });
+            renderButtonBuilder();
+        }
+
+        function removeButtonRow(idx) {
+            currentButtons.splice(idx, 1);
+            renderButtonBuilder();
+        }
+
+        function updateButtonData(idx, field, val) {
+            if (currentButtons[idx]) currentButtons[idx][field] = val;
+        }
+
+        function submitForm() {
+            document.getElementById('botonesJsonInput').value = JSON.stringify(currentButtons);
+            document.getElementById('editorForm').submit();
+        }
+
+        function openDrawer() { document.getElementById('inspectorDrawer').classList.add('open'); }
+        function closeDrawer() { document.getElementById('inspectorDrawer').classList.remove('open'); }
+
+        function toggleTheme() {
+            document.body.classList.toggle('dark-mode');
+            const icon = document.getElementById('themeIcon');
+            icon.className = document.body.classList.contains('dark-mode') ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+            renderConnections();
+        }
+
+        function formatText(t) {
+            return t.replace(/\*([^\*]+)\*/g, '<strong>$1</strong>')
+                    .replace(/_([^_]+)_/g, '<em>$1</em>')
+                    .replace(/\n/g, '<br>');
+        }
+
+        async function deleteCurrentOption() {
+            const confirmed = await customConfirm({
+                title: 'Eliminar paso',
+                message: `¿Deseas eliminar el paso [<code>${activeKey}</code>]?`,
+                confirmText: 'Eliminar',
+                cancelText: 'Cancelar',
+                isDanger: true,
+                icon: 'fa-trash-can'
+            });
+            if (confirmed) {
+                document.getElementById('formAction').value = 'delete';
+                document.getElementById('editorForm').submit();
+            }
+        }
+
+        function handleNewInputs() {
+            const titleVal = document.getElementById('newTitleInput').value.trim();
+            const textVal = document.getElementById('newTextInput').value.trim();
+            const codeInput = document.getElementById('newCodeInput');
+            const submitBtn = document.getElementById('btnSubmitNewOption');
+
+            if (titleVal) {
+                let slug = titleVal.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+                if (!slug.startsWith('f_')) slug = 'f_' + slug;
+                codeInput.value = slug;
+            } else codeInput.value = '';
+
+            if (titleVal.length >= 2 && textVal.length >= 3) {
+                submitBtn.disabled = false; submitBtn.style.opacity = '1';
+            } else {
+                submitBtn.disabled = true; submitBtn.style.opacity = '0.5';
+            }
+        }
+
+        function openNewModalInColumn(xPos) {
+            const select = document.getElementById('newColumnSelect');
+            if (select) select.value = xPos.toString();
+            openNewModal();
+        }
+
+        function onColumnSelectChange() {
+            const val = document.getElementById('newColumnSelect').value;
+            if (val.includes('_')) {
+                const parts = val.split('_');
+                panX = -(parseInt(parts[0]) - 100);
+                panY = -(parseInt(parts[1]) - 100);
+                applyTransform();
+            } else {
+                panToColumn(parseInt(val));
+            }
+        }
+
+        function openNewModal() { document.getElementById('newOptionModal').style.display = 'flex'; }
+        function closeNewModal() { document.getElementById('newOptionModal').style.display = 'none'; }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

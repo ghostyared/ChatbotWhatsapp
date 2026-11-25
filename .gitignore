@@ -1,0 +1,25 @@
+# Secretos: NUNCA subir al repositorio
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Datos y respaldos (contienen datos personales)
+*.sql
+*.dump
+*.xlsx
+*.log
+backups/
+
+# Editores / sistema
+*.swp
+*.swo
+.idea/
+.vscode/
+.DS_Store
+.pytest_cache/

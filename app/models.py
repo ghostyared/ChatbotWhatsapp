@@ -1,0 +1,399 @@
+from datetime import datetime, timedelta, timezone
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+from config import Config
+
+db = SQLAlchemy()
+
+
+def utcnow():
+    """UTC 'naive' (sin tzinfo) para guardar en BD."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+class Usuario(db.Model):
+    """Contacto de WhatsApp (quien escribe al bot)."""
+    __tablename__ = 'usuarios'
+    id = db.Column(db.Integer, primary_key=True)
+    telefono = db.Column(db.String(20), unique=True, index=True)
+    nombre_wa = db.Column(db.String(100))
+    dni = db.Column(db.String(20), nullable=True, index=True)  # ID validado (memoria)
+    ultima_vez = db.Column(db.DateTime, default=utcnow)
+    bot_pausado = db.Column(db.Boolean, default=False)
+    intentos_id = db.Column(db.Integer, default=0, nullable=False)
+    bloqueado_id_hasta = db.Column(db.DateTime, nullable=True)
+    intentos_acad = db.Column(db.Integer, default=0, nullable=False)
+    bloqueado_acad_hasta = db.Column(db.DateTime, nullable=True)
+
+
+class Mensaje(db.Model):
+    __tablename__ = 'mensajes'
+    id = db.Column(db.Integer, primary_key=True)
+    telefono = db.Column(db.String(20), index=True)
+    nombre = db.Column(db.String(100))
+    contenido = db.Column(db.Text)
+    direccion = db.Column(db.String(10))  # ENTRADA / SALIDA
+    fecha = db.Column(db.DateTime, default=utcnow, index=True)
+    wa_id = db.Column(db.String(128), unique=True, nullable=True)  # id de Meta: evita duplicados por reintentos
+
+
+class Conversacion(db.Model):
+    """Estado de una conversación guiada (flujo + paso + datos recogidos). Una por teléfono."""
+    __tablename__ = 'conversaciones'
+    id = db.Column(db.Integer, primary_key=True)
+    telefono = db.Column(db.String(20), unique=True, index=True)
+    flujo = db.Column(db.String(30), nullable=False)
+    paso = db.Column(db.String(30), nullable=False)
+    datos = db.Column(db.Text, default='{}')
+    expira_en = db.Column(db.DateTime, nullable=False)
+
+
+class Comprobante(db.Model):
+    """Comprobante de pago recibido por WhatsApp, pendiente de revisión por contabilidad."""
+    __tablename__ = 'comprobantes'
+    id = db.Column(db.Integer, primary_key=True)
+    telefono = db.Column(db.String(20), index=True)
+    nombre_wa = db.Column(db.String(100))
+    dni_estudiante = db.Column(db.String(20), index=True)
+    archivo = db.Column(db.String(80), nullable=False)       # nombre del archivo (uuid + extensión)
+    contenido = db.deferred(db.Column(db.LargeBinary))       # bytes del comprobante cuando COMPROBANTE_ALMACEN=bd
+    mime = db.Column(db.String(60))
+    tamano = db.Column(db.Integer)
+    sha256 = db.Column(db.String(64), index=True)
+    duplicado = db.Column(db.Boolean, default=False)         # mismo archivo ya recibido antes
+    nota = db.Column(db.String(300))                         # texto que acompañó al archivo
+    estado = db.Column(db.String(12), default='pendiente', index=True)   # pendiente|aprobado|rechazado
+    motivo = db.Column(db.String(300))
+    creado_en = db.Column(db.DateTime, default=utcnow, index=True)
+    revisado_por = db.Column(db.String(50))
+    revisado_en = db.Column(db.DateTime)
+
+    @property
+    def codigo(self):
+        return f"CP-{self.id:06d}"
+
+
+class AuditoriaConsulta(db.Model):
+    """Registro de cada consulta de deudas/notas (quién, qué, resultado). El DNI se guarda enmascarado."""
+    __tablename__ = 'auditoria_consultas'
+    id = db.Column(db.Integer, primary_key=True)
+    telefono = db.Column(db.String(20), index=True)
+    tipo = db.Column(db.String(10))
+    dni_mask = db.Column(db.String(20))
+    anio = db.Column(db.String(10))
+    periodo = db.Column(db.String(20))
+    resultado = db.Column(db.String(20))     # ok | no_coincide | bloqueado | pagos_pendientes | error
+    fecha = db.Column(db.DateTime, default=utcnow, index=True)
+
+
+class Lead(db.Model):
+    """Interesado captado por el asistente de ventas (seguimiento comercial)."""
+    __tablename__ = 'leads'
+    id = db.Column(db.Integer, primary_key=True)
+    telefono = db.Column(db.String(20), index=True)
+    nombre = db.Column(db.String(120))
+    sede_id = db.Column(db.String(60))
+    sede_nombre = db.Column(db.String(120))
+    nivel = db.Column(db.String(80))
+    edad_hijo = db.Column(db.String(40))
+    comentario = db.Column(db.Text)
+    visita_pref = db.Column(db.String(120))          # "sábado 10am" tal como lo dijo la persona
+    quiere_asesor = db.Column(db.Boolean, default=False)
+    estado = db.Column(db.String(20), default='nuevo', index=True)   # nuevo|contactado|visita|matriculado|descartado
+    asesor_avisado = db.Column(db.Boolean, default=False)
+    notas_internas = db.Column(db.Text)
+    atendido_por = db.Column(db.String(60))
+    asignado_a = db.Column(db.String(60), index=True)
+    prioridad = db.Column(db.String(15), default='media', index=True)  # alta|media|baja
+    telefono_contacto = db.Column(db.String(30))
+    resultado_llamada = db.Column(db.String(30), default='pendiente')
+    resumen_ia = db.Column(db.Text)
+    creado_en = db.Column(db.DateTime, default=utcnow, index=True)
+    actualizado_en = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
+
+    ESTADOS = ('nuevo', 'contactado', 'visita', 'matriculado', 'descartado')
+    PRIORIDADES = ('alta', 'media', 'baja')
+    RESULTADOS_LLAMADA = ('pendiente', 'contactado', 'no_contesta', 'volver_llamar', 'cita_agendada', 'matriculado', 'descartado')
+
+
+class IaUso(db.Model):
+    """Contador diario de uso de la IA por teléfono (tope de gasto)."""
+    __tablename__ = 'ia_uso'
+    id = db.Column(db.Integer, primary_key=True)
+    telefono = db.Column(db.String(20), index=True)
+    dia = db.Column(db.Date, index=True)
+    mensajes = db.Column(db.Integer, default=0, nullable=False)
+    tokens = db.Column(db.Integer, default=0, nullable=False)
+    __table_args__ = (db.UniqueConstraint('telefono', 'dia', name='uq_ia_uso_tel_dia'),)
+
+
+class Ajuste(db.Model):
+    """Ajustes editables desde el panel (p. ej. la propuesta de venta que usa la IA)."""
+    __tablename__ = 'ajustes'
+    clave = db.Column(db.String(60), primary_key=True)
+    valor = db.Column(db.Text, default='')
+    actualizado_por = db.Column(db.String(60))
+    actualizado_en = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
+
+    @staticmethod
+    def obtener(clave, defecto=''):
+        a = db.session.get(Ajuste, clave)
+        return a.valor if a and a.valor else defecto
+
+    @staticmethod
+    def guardar(clave, valor, usuario=None):
+        a = db.session.get(Ajuste, clave) or Ajuste(clave=clave)
+        a.valor, a.actualizado_por = valor, usuario
+        db.session.add(a)
+        db.session.commit()
+
+
+class ApiEndpoint(db.Model):
+    """Endpoints HTTP configurables desde /admin/endpoints (URL, token y cuerpo JSON con variables dinámicas)."""
+    __tablename__ = 'api_endpoints'
+    id = db.Column(db.Integer, primary_key=True)
+    clave = db.Column(db.String(60), unique=True, nullable=False, index=True)
+    nombre = db.Column(db.String(120), nullable=False)
+    descripcion = db.Column(db.String(300), default='')
+    metodo = db.Column(db.String(10), nullable=False, default='POST')
+    url = db.Column(db.String(500), nullable=False)
+    auth_header = db.Column(db.String(60), default='Authorization')
+    auth_scheme = db.Column(db.String(30), default='Bearer')
+    token = db.Column(db.Text, default='')
+    headers_json = db.Column(db.Text, default='{"Content-Type": "application/json"}')
+    body_template = db.Column(db.Text, default='{}')
+    timeout = db.Column(db.Integer, default=10, nullable=False)
+    activo = db.Column(db.Boolean, default=True, nullable=False)
+    actualizado_por = db.Column(db.String(60))
+    actualizado_en = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
+
+    @staticmethod
+    def seed():
+        """Crea los endpoints base si no existen (nunca pisa los que ya editaste desde el panel)."""
+        base_url = (Config.ACAD_API_URL or "").rstrip("/")   # definir ACAD_API_URL en el .env
+        tok = Config.ACAD_API_TOKEN or ""
+        iniciales = [
+            dict(
+                clave="periodos_estudiante",
+                nombre="Periodos del Estudiante",
+                descripcion="Devuelve los datos del estudiante y las empresas/periodos matriculados según su DNI.",
+                metodo="POST",
+                url=f"{base_url}/PeriodosEstudiante.php",
+                auth_header=Config.ACAD_AUTH_HEADER or "Authorization",
+                auth_scheme=Config.ACAD_AUTH_SCHEME or "Bearer",
+                token=tok,
+                headers_json='{"Content-Type": "application/json"}',
+                body_template='{\n  "dni": "{dni}"\n}',
+                timeout=Config.ACAD_API_TIMEOUT or 10,
+                activo=True,
+            ),
+            dict(
+                clave="consultar_pagos",
+                nombre="Cuotas de Pago",
+                descripcion="Consulta las cuotas y estado de pagos usando IdEstudiante e IdPeriodo seleccionados.",
+                metodo="POST",
+                url=f"{base_url}/ConsultarPagos.php",
+                auth_header=Config.ACAD_AUTH_HEADER or "Authorization",
+                auth_scheme=Config.ACAD_AUTH_SCHEME or "Bearer",
+                token=tok,
+                headers_json='{"Content-Type": "application/json"}',
+                body_template='{\n  "IdEstudiante": {IdEstudiante},\n  "IdPeriodo": {IdPeriodo}\n}',
+                timeout=Config.ACAD_API_TIMEOUT or 10,
+                activo=True,
+            ),
+            dict(
+                clave="consultar_notas",
+                nombre="Notas del Estudiante (Colegio)",
+                descripcion="Consulta la boleta de notas por subperiodos (solo Colegio, no Pedagógico).",
+                metodo="POST",
+                url=f"{base_url}/ConsultarNotas.php",
+                auth_header=Config.ACAD_AUTH_HEADER or "Authorization",
+                auth_scheme=Config.ACAD_AUTH_SCHEME or "Bearer",
+                token=tok,
+                headers_json='{"Content-Type": "application/json"}',
+                body_template='{\n  "IdEstudiante": {IdEstudiante},\n  "IdPeriodo": {IdPeriodo}\n}',
+                timeout=Config.ACAD_API_TIMEOUT or 10,
+                activo=True,
+            ),
+            dict(
+                clave="consultar_comunicados",
+                nombre="Comunicados",
+                descripcion="Consulta de comunicados institucionales (actívalo cuando configures su URL y cuerpo).",
+                metodo="POST",
+                url=f"{base_url}/ConsultarComunicados.php",
+                auth_header=Config.ACAD_AUTH_HEADER or "Authorization",
+                auth_scheme=Config.ACAD_AUTH_SCHEME or "Bearer",
+                token=tok,
+                headers_json='{"Content-Type": "application/json"}',
+                body_template='{\n  "IdEstudiante": {IdEstudiante},\n  "IdEmpresa": {IdEmpresa},\n  "IdCarrera": {IdCarrera},\n  "IdCiclo": {IdCiclo},\n  "IdPeriodo": {IdPeriodo}\n}',
+                timeout=Config.ACAD_API_TIMEOUT or 10,
+                activo=False,
+            ),
+            dict(
+                clave="notificar_callcenter",
+                nombre="Webhook Call Center / CRM Externo",
+                descripcion="Opcional: reenvía automáticamente cada nuevo lead/solicitud de llamada a tu CRM, Teams o central telefónica.",
+                metodo="POST",
+                url=Config.CALLCENTER_WEBHOOK_URL,   # definir CALLCENTER_WEBHOOK_URL en el .env
+                auth_header=Config.ACAD_AUTH_HEADER or "Authorization",
+                auth_scheme=Config.ACAD_AUTH_SCHEME or "Bearer",
+                token=tok,
+                headers_json='{"Content-Type": "application/json"}',
+                body_template='{\n  "lead_id": {lead_id},\n  "nombre": "{nombre}",\n  "telefono": "{telefono}",\n  "sede": "{sede}",\n  "nivel": "{nivel}",\n  "prioridad": "{prioridad}",\n  "resumen": "{resumen}"\n}',
+                timeout=8,
+                activo=False,
+            ),
+        ]
+        for item in iniciales:
+            existente = ApiEndpoint.query.filter_by(clave=item["clave"]).first()
+            if not existente:
+                db.session.add(ApiEndpoint(**item))
+            elif (
+                item["clave"] == "consultar_notas"
+                and not existente.activo
+                and not existente.actualizado_por
+            ):
+                # Actualización automática de plantilla no editada manualmente
+                existente.nombre = item["nombre"]
+                existente.descripcion = item["descripcion"]
+                existente.body_template = item["body_template"]
+                existente.activo = True
+                if not existente.token and tok:
+                    existente.token = tok
+        db.session.commit()
+
+
+class RespuestaBot(db.Model):
+    """Nodo del flujo: texto + link opcional + botones (JSON) editable desde el panel."""
+    __tablename__ = 'respuestas_bot'
+    id = db.Column(db.Integer, primary_key=True)
+    clave = db.Column(db.String(50), unique=True)
+    titulo = db.Column(db.String(150), nullable=True)
+    texto = db.Column(db.Text)
+    link = db.Column(db.String(255), nullable=True)
+    botones_json = db.Column(db.Text, nullable=True)
+
+    @staticmethod
+    def seed():
+        """Contenido inicial del menú (colegio + instituto + alumnos). Todo se edita desde /admin/editor.
+        Solo crea los nodos que no existen: nunca pisa lo que ya editaste."""
+        import json
+        bot, empresa = Config.BOT_NAME, Config.COMPANY_NAME
+
+        def b(*items):
+            return json.dumps([{"id": i, "title": t} for i, t in items], ensure_ascii=False)
+
+        pie = lambda back: b((back, "⬅️ Volver"), ("f_asesor", "🙋 Hablar con asesor"), ("ir_inicio", "🏠 Inicio"))
+        pendiente = "\n\n✏️ _Edita este texto desde el panel (Editor del Bot)._"
+        datos = [
+            # clave, título, texto, link, botones
+            ('bienvenida', '👋 Bienvenida (tras validar ID)',
+             '¡Hola *{nombre}*! ✨\n\nGracias, ya validé tus datos en *{empresa}* 🙌\n\n¿En qué puedo ayudarte hoy?',
+             '', b(('m_gest', '📚 Vacantes'), ('m_segu', '🎓 Soy alumno'), ('m_bene', '📍 Contacto'))),
+            ('inicio', '🏠 Menú principal',
+             f'¡Hola *{{nombre}}*! ✨\n\nSoy *{bot}*, el asistente virtual de *{empresa}*.\n\n¿En qué puedo ayudarte hoy?',
+             '', b(('m_gest', '📚 Vacantes'), ('m_segu', '🎓 Soy alumno'), ('m_bene', '📍 Contacto'))),
+
+            # --- Rama 1: Vacantes e informes ---
+            ('m_gest', '📚 Vacantes e informes',
+             '📚 *Vacantes e informes*\n\nContamos con *2 sedes de Colegio* y nuestro *Instituto Pedagógico* (inicio cada semestre).\n¿Qué te interesa?', '',
+             b(('v_colegio', '🏫 Colegios (2 sedes)'), ('v_instituto', '🎓 Instituto'), ('f_matricula', '📝 Matrícula'))),
+            ('v_colegio', '🏫 Colegios (2 sedes)',
+             '🏫 *Nuestros 2 Colegios*\n\nCada sede cuenta con su propio distrito, pensión mensual y propuesta educativa. ¿Cuál deseas conocer?', '',
+             b(('v_col_sede1', '🏫 Colegio Sede 1'), ('v_col_sede2', '🏫 Colegio Sede 2'), ('m_gest', '⬅️ Volver'))),
+            ('v_col_sede1', 'Colegio · Sede 1',
+             '🏫 *Colegio — Sede 1*\n\n📍 Distrito: (editar)\n💰 Pensión mensual: (editar)\n✨ Propuesta educativa: (editar)\n📚 Niveles: Inicial, Primaria y Secundaria.' + pendiente, '', pie('v_colegio')),
+            ('v_col_sede2', 'Colegio · Sede 2',
+             '🏫 *Colegio — Sede 2*\n\n📍 Distrito: (editar)\n💰 Pensión mensual: (editar)\n✨ Propuesta educativa: (editar)\n📚 Niveles: Inicial, Primaria y Secundaria.' + pendiente, '', pie('v_colegio')),
+            ('v_inicial', 'Colegio · Inicial', '🧸 *Nivel Inicial*\n\nEdades, horarios, requisitos y vacantes disponibles.' + pendiente, '', pie('v_colegio')),
+            ('v_primaria', 'Colegio · Primaria', '📘 *Nivel Primaria*\n\nGrados, horarios, requisitos y vacantes disponibles.' + pendiente, '', pie('v_colegio')),
+            ('v_secundaria', 'Colegio · Secundaria', '📗 *Nivel Secundaria*\n\nGrados, horarios, requisitos y vacantes disponibles.' + pendiente, '', pie('v_colegio')),
+            ('v_instituto', '🎓 Instituto Pedagógico',
+             '🎓 *Instituto Pedagógico*\n\n📅 Inicio de clases *cada semestre*.\nContamos con 3 carreras profesionales. ¿Cuál te interesa?', '',
+             b(('v_inst_inicial', 'Educ. Inicial'), ('v_inst_fisica', 'Educ. Física'), ('v_inst_primaria', 'Educ. Primaria'))),
+            ('v_inst_inicial', 'Instituto · Educación Inicial', '🧸 *Educación Inicial*\n\n📅 Inicio cada semestre.\nDuración, malla, requisitos de admisión e inversión.' + pendiente, '', pie('v_instituto')),
+            ('v_inst_primaria', 'Instituto · Educación Primaria', '📘 *Educación Primaria*\n\n📅 Inicio cada semestre.\nDuración, malla, requisitos de admisión e inversión.' + pendiente, '', pie('v_instituto')),
+            ('v_inst_fisica', 'Instituto · Educación Física', '🏃 *Educación Física*\n\n📅 Inicio cada semestre.\nDuración, malla, requisitos de admisión e inversión.' + pendiente, '', pie('v_instituto')),
+            ('f_matricula', 'Proceso de matrícula', '📝 *Proceso de matrícula*\n\nPasos, fechas y documentos necesarios.' + pendiente, '', pie('m_gest')),
+
+            # --- Rama 2: Alumnos (acciones guiadas; el texto es la introducción que ve el usuario) ---
+            ('m_segu', '🎓 Servicios para alumnos', '🎓 *Servicios para alumnos*\n\nElige una opción:', '',
+             b(('acc_alumno', '🔍 Consultar con DNI'), ('comp_enviar', '📤 Enviar comprobante'), ('ir_inicio', '🏠 Inicio'))),
+            ('acc_alumno', '🎓 Portal del Alumno (DNI)',
+             '🎓 *Portal del Alumno*\n\nEscribe tu número de *DNI* (solo números) para ver tus periodos matriculados y consultar *Notas*, *Cuotas de pago* o *Comunicados*.', '', None),
+            ('acc_deudas', '💳 Consulta de pagos', '💳 *Consulta de pagos*\n\nTe haré unas preguntas rápidas. Escribe *cancelar* en cualquier momento para salir.', '', None),
+            ('acc_notas', '📝 Consulta de notas', '📝 *Consulta de notas*\n\nTe haré unas preguntas rápidas. Escribe *cancelar* en cualquier momento para salir.', '', None),
+            ('comp_enviar', '📤 Envío de comprobante', '📤 *Envío de comprobante de pago*\n\nEl área contable lo revisará y te avisaremos por este chat.', '', None),
+
+            # --- Rama 3: Contacto ---
+            ('m_bene', '📍 Contacto', '📍 *Contacto*\n\nSelecciona una opción:', '',
+             b(('f_horarios', '🕒 Horarios'), ('f_ubicacion', '📍 Ubicación'), ('f_asesor', '🙋 Asesor'))),
+            ('f_horarios', 'Horarios de atención', '🕒 *Horarios de atención*\n\nLunes a viernes, de 8:00 a 17:00.' + pendiente, '', pie('m_bene')),
+            ('f_ubicacion', 'Ubicación', '📍 *Ubicación*\n\nDirección y referencias.' + pendiente, '', pie('m_bene')),
+            ('f_asesor', 'Hablar con un asesor', f'🙋 *Hablar con un asesor*\n\nEscríbenos a contacto@ejemplo.com o llámanos al (01) 000-0000.\n\n— Equipo {empresa}' + pendiente, '',
+             b(('ir_inicio', '🏠 Inicio'))),
+        ]
+        for clave, titulo, texto, link, botones in datos:
+            if not RespuestaBot.query.filter_by(clave=clave).first():
+                db.session.add(RespuestaBot(clave=clave, titulo=titulo, texto=texto, link=link, botones_json=botones))
+        db.session.commit()
+
+
+class Colaborador(db.Model):
+    """Base de personas autorizadas (validación por DNI/ID). Se carga por Excel o a mano."""
+    __tablename__ = 'colaboradores'
+    id = db.Column(db.Integer, primary_key=True)
+    dni = db.Column(db.String(20), unique=True, index=True)
+    nombre = db.Column(db.String(100))
+    empresa = db.Column(db.String(100))
+    cargo = db.Column(db.String(100))
+    estado = db.Column(db.String(50))
+
+
+class UsuarioSistema(db.Model):
+    """Usuarios del panel web."""
+    __tablename__ = 'usuarios_sistema'
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    nombre_completo = db.Column(db.String(100), nullable=True)
+    rol = db.Column(db.String(20), nullable=False, default='lector')  # 'admin' o 'lector'
+    activo = db.Column(db.Boolean, default=True, nullable=False)
+    intentos_fallidos = db.Column(db.Integer, default=0, nullable=False)
+    bloqueado_hasta = db.Column(db.DateTime, nullable=True)
+    ultimo_login = db.Column(db.DateTime, nullable=True)
+    creado_en = db.Column(db.DateTime, default=utcnow)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+    def esta_bloqueado(self):
+        return bool(self.bloqueado_hasta and self.bloqueado_hasta > utcnow())
+
+    def registrar_fallo(self):
+        self.intentos_fallidos = (self.intentos_fallidos or 0) + 1
+        if self.intentos_fallidos >= Config.LOGIN_MAX_ATTEMPTS:
+            self.bloqueado_hasta = utcnow() + timedelta(minutes=Config.LOGIN_LOCK_MINUTES)
+        db.session.commit()
+
+    def registrar_exito(self):
+        self.intentos_fallidos = 0
+        self.bloqueado_hasta = None
+        self.ultimo_login = utcnow()
+        db.session.commit()
+
+    @staticmethod
+    def seed_admin():
+        """Crea el admin inicial desde ADMIN_USER/ADMIN_PASS (.env) si no existe.
+        Nunca pisa la contraseña de un usuario existente (para eso: manage.py reset-admin)."""
+        username = Config.ADMIN_USER.strip().lower()
+        if UsuarioSistema.query.filter_by(username=username).first():
+            return False
+        admin = UsuarioSistema(username=username, nombre_completo=Config.ADMIN_NAME, rol='admin', activo=True)
+        admin.set_password(Config.ADMIN_PASS)
+        db.session.add(admin)
+        db.session.commit()
+        return True
