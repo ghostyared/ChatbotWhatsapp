@@ -31,6 +31,27 @@ services:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
 
+  worker:
+    image: qa-chatbot:latest
+    container_name: qa_chatbot_worker
+    restart: always
+    init: true
+    depends_on:
+      - app
+    entrypoint: ["python", "-m", "app.timers"]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 0.5
+    env_file: .env
+    environment:
+      - TZ=${APP_TIMEZONE:-America/Lima}
+    networks:
+      - proxy-net
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
 volumes:
   botdata:
 

@@ -17,8 +17,9 @@ from werkzeug.security import check_password_hash
 from config import Config
 from . import csrf, endpoints_client as ep_cli, limiter
 from .bot_logic import brain_gethi
-from .models import Ajuste, ApiEndpoint, Colaborador, Comprobante, IaUso, Lead, Mensaje, RespuestaBot, Usuario, UsuarioSistema, db, utcnow
-from .services import enviar_texto, registrar_msg
+from .models import (Ajuste, ApiEndpoint, Colaborador, Comprobante, Empresa, IaUso, Lead, Mensaje,
+                     PlantillaRapida, PreguntaPendiente, ReglaCampana, RespuestaBot, Usuario, UsuarioSistema, db, utcnow)
+from .services import enviar_plantilla, enviar_texto, registrar_msg
 from .timeutil import to_local
 
 logger = logging.getLogger(__name__)
@@ -93,7 +94,7 @@ def _para_historial(txt):
     return txt
 
 
-def _procesar(app, tel, txt, btn_id, nombre, tipo, media=None):
+def _procesar(app, tel, txt, btn_id, nombre, tipo, media=None, referral=None):
     with app.app_context():
         lock_conn = None
         lock_key = None
@@ -112,7 +113,7 @@ def _procesar(app, tel, txt, btn_id, nombre, tipo, media=None):
                         pass
                 lock_conn = None
         try:
-            brain_gethi(tel, txt, btn_id, nombre, tipo, media)
+            brain_gethi(tel, txt, btn_id, nombre, tipo, media, referral=referral)
         except Exception:
             logger.exception("Error procesando mensaje de %s", tel)
             db.session.rollback()
@@ -152,13 +153,14 @@ def receive():
                     continue
                 nombre = contactos.get(tel) or 'Usuario WA'
                 tipo, txt, btn_id, media = _extraer_mensaje(msg)
+                referral = msg.get('referral') if isinstance(msg.get('referral'), dict) else None
                 resultado = registrar_msg(tel, nombre, _para_historial(txt), 'ENTRADA', wa_id=msg.get('id'))
                 if resultado == 'dup':
                     continue  # reintento de Meta: ya procesado
                 if resultado == 'error':
                     hubo_error = True  # 500 => Meta reintenta
                     continue
-                executor.submit(_procesar, app, tel, txt, btn_id, nombre, tipo, media)
+                executor.submit(_procesar, app, tel, txt, btn_id, nombre, tipo, media, referral)
 
     if hubo_error:
         return jsonify({"status": "error"}), 500
@@ -389,25 +391,63 @@ def monitor(tel=None):
 @limiter.exempt
 @monitor_required
 def chat_updates(tel=None):
+    rows = _contactos_query()
+    tels = [c.telefono for c in rows]
+    estados_map = {
+        u.telefono: (u.estado_chat or 'bot', u.asignado_a or '')
+        for u in (Usuario.query.filter(Usuario.telefono.in_(tels)).all() if tels else [])
+    }
     contactos_list = [
-        {"tel": c.telefono, "nom": c.nombre or c.telefono, "ultima_fecha": to_local(c.ultima_fecha, '%H:%M')}
-        for c in _contactos_query()
+        {
+            "tel": c.telefono,
+            "nom": c.nombre or c.telefono,
+            "ultima_fecha": to_local(c.ultima_fecha, '%H:%M'),
+            "estado_chat": estados_map.get(c.telefono, ('bot', ''))[0],
+            "asignado_a": estados_map.get(c.telefono, ('bot', ''))[1],
+        }
+        for c in rows
     ]
     mensajes_list = []
     bot_pausado_val = False
+    estado_chat = 'bot'
+    asignado_a = ''
+    handoff_brief = None
     if tel and tel != 'none':
         mensajes_list = [
             {
                 "id": m.id,
                 "direccion": m.direccion,
-                "nombre": m.nombre if m.direccion == 'ENTRADA' else Config.bot_sender(),
+                "es_interno": bool(getattr(m, 'es_interno', False)),
+                "nombre": m.nombre if (m.direccion == 'ENTRADA' or getattr(m, 'es_interno', False)) else Config.bot_sender(),
                 "contenido": m.contenido,
                 "fecha": to_local(m.fecha, '%H:%M'),
             } for m in _mensajes_de(tel)
         ]
         usu = Usuario.query.filter_by(telefono=tel).first()
         bot_pausado_val = bool(usu and usu.bot_pausado)
-    return jsonify({"contactos": contactos_list, "mensajes": mensajes_list, "bot_pausado": bot_pausado_val})
+        if usu:
+            estado_chat = usu.estado_chat or 'bot'
+            asignado_a = usu.asignado_a or ''
+        lead = Lead.query.filter_by(telefono=tel).order_by(Lead.id.desc()).first()
+        if lead:
+            handoff_brief = {
+                "lead_id": lead.id,
+                "nombre": lead.nombre or '',
+                "empresa": lead.sede_nombre or '',
+                "programa": lead.nivel or '',
+                "origen": lead.origen or 'organico',
+                "campana": lead.campana_nombre or '',
+                "score": lead.score or 'frio',
+                "resumen": lead.resumen_ia or lead.comentario or '',
+            }
+    return jsonify({
+        "contactos": contactos_list,
+        "mensajes": mensajes_list,
+        "bot_pausado": bot_pausado_val,
+        "estado_chat": estado_chat,
+        "asignado_a": asignado_a,
+        "handoff_brief": handoff_brief,
+    })
 
 
 def _importar_excel(file_storage, max_filas=50000):
@@ -678,7 +718,218 @@ def send_message(tel):
         except ValueError:
             detalle = ''
         return jsonify({"error": f"WhatsApp rechazó el mensaje. {detalle}".strip()}), 502
+
+    # Marcar atención humana activa y armar timer de inactividad del usuario + FRT del Lead
+    ahora = utcnow()
+    usu = Usuario.query.filter_by(telefono=tel).first()
+    if usu:
+        usu.bot_pausado = True
+        usu.estado_chat = 'atendido'
+        usu.asignado_a = g.user.username
+        usu.esperando_asesor_desde = None
+        usu.esperando_usuario_desde = ahora
+        usu.aviso_inactividad_enviado = False
+    lead = Lead.query.filter_by(telefono=tel).order_by(Lead.id.desc()).first()
+    if lead and not lead.primera_respuesta_en:
+        lead.primera_respuesta_en = ahora
+        if not lead.asignado_a:
+            lead.asignado_a = g.user.username
+    db.session.commit()
     return jsonify({"status": "success"})
+
+
+@main.route('/api/plantillas_rapidas/<tel>')
+@limiter.exempt
+@agente_required
+def api_plantillas_rapidas(tel):
+    """Devuelve respuestas rápidas (/atajos) ya interpoladas con {{usuario}}, {{asesor}} y {{url_empresa}}."""
+    from .timers import interpolar_plantilla
+    PlantillaRapida.seed()
+    usu = Usuario.query.filter_by(telefono=tel).first()
+    emp = db.session.get(Empresa, usu.empresa_id) if (usu and usu.empresa_id) else None
+    nom_usuario = (usu.nombre_wa if usu and usu.nombre_wa else "") or "estimado(a)"
+    nom_asesor = (g.user.nombre_completo or g.user.username)
+    items = PlantillaRapida.query.filter_by(activo=True).order_by(PlantillaRapida.id.asc()).all()
+    return jsonify({
+        "plantillas": [
+            {
+                "atajo": p.atajo,
+                "titulo": p.titulo,
+                "texto": interpolar_plantilla(p.contenido, usuario_nombre=nom_usuario, asesor_nombre=nom_asesor, empresa=emp),
+            }
+            for p in items
+        ]
+    }), 200
+
+
+@main.route('/api/whisper/<tel>', methods=['POST'])
+@limiter.exempt
+@admin_required
+def api_whisper(tel):
+    """Modo Susurro (Whisper): nota interna del supervisor visible solo en el panel, jamás enviada a WhatsApp."""
+    data = request.get_json(silent=True) or {}
+    nota = (data.get('mensaje') or '').strip()
+    if not nota:
+        return jsonify({"error": "Nota vacía"}), 400
+    m = Mensaje(
+        telefono=str(tel),
+        nombre=f"[Susurro] {g.user.username}",
+        contenido=nota[:2000],
+        direccion='INTERNO',
+        es_interno=True,
+    )
+    db.session.add(m)
+    db.session.commit()
+    return jsonify({"status": "success", "id": m.id}), 201
+
+
+@main.route('/api/takeover/<tel>', methods=['POST'])
+@limiter.exempt
+@admin_required
+def api_takeover(tel):
+    """Reasigna un chat a otro colaborador o lo devuelve al bot EVO en 1 clic."""
+    data = request.get_json(silent=True) or {}
+    nuevo_asesor = (data.get('asignado_a') or '').strip()[:60]
+    devolver_bot = bool(data.get('devolver_bot'))
+    usu = Usuario.query.filter_by(telefono=tel).first()
+    if not usu:
+        return jsonify({"error": "Contacto no encontrado"}), 404
+    if devolver_bot:
+        usu.bot_pausado = False
+        usu.estado_chat = 'bot'
+        usu.asignado_a = None
+        usu.esperando_asesor_desde = None
+        usu.esperando_usuario_desde = None
+        usu.aviso_inactividad_enviado = False
+    else:
+        usu.bot_pausado = True
+        usu.estado_chat = 'atendido' if nuevo_asesor else 'en_cola'
+        usu.asignado_a = nuevo_asesor or None
+        lead = Lead.query.filter_by(telefono=tel).order_by(Lead.id.desc()).first()
+        if lead and nuevo_asesor:
+            lead.asignado_a = nuevo_asesor
+    db.session.commit()
+    return jsonify({"status": "success", "estado_chat": usu.estado_chat, "asignado_a": usu.asignado_a or ""}), 200
+
+
+@main.route('/admin/leads/<int:lid>/enviar_hsm', methods=['POST'])
+@agente_required
+def lead_enviar_hsm(lid):
+    """Envía una plantilla HSM aprobada por Meta al lead (válida incluso fuera de la ventana de 24 h)."""
+    l = db.get_or_404(Lead, lid)
+    tpl_nombre = (request.form.get('template_name') or '').strip()[:100]
+    idioma = (request.form.get('language') or 'es').strip()[:10]
+    if not tpl_nombre:
+        flash('Indica el nombre de la plantilla HSM aprobada por Meta.', 'danger')
+        return redirect(_destino_leads(request.form.get('next', '')))
+    resp = enviar_plantilla(l.telefono, tpl_nombre, idioma=idioma)
+    if resp is not None and resp.status_code == 200:
+        l.atendido_por = g.user.username
+        if l.estado == 'nuevo':
+            l.estado = 'contactado'
+        if not l.primera_respuesta_en:
+            l.primera_respuesta_en = utcnow()
+        db.session.commit()
+        flash(f'Plantilla HSM «{tpl_nombre}» enviada al lead #{l.id}.', 'success')
+    else:
+        flash(f'Meta rechazó o no respondió al envío de la plantilla «{tpl_nombre}».', 'danger')
+    return redirect(_destino_leads(request.form.get('next', '')))
+
+
+def _calcular_kpis():
+    total_usuarios = Usuario.query.count()
+    derivados = Lead.query.filter(Lead.quiere_asesor.is_(True)).count()
+    contencion = round(((total_usuarios - derivados) / total_usuarios * 100), 1) if total_usuarios else 100.0
+    contencion = max(0.0, min(100.0, contencion))
+
+    leads_todos = Lead.query.all()
+    frt_vals, art_vals = [], []
+    por_asesor = {}
+    embudo_origen = {}
+    for l in leads_todos:
+        orig = l.origen or 'organico'
+        e = embudo_origen.setdefault(orig, {'ingresados': 0, 'contactados': 0, 'citas': 0, 'matriculados': 0})
+        e['ingresados'] += 1
+        if l.estado in ('contactado', 'visita', 'matriculado'):
+            e['contactados'] += 1
+        if l.estado in ('visita', 'matriculado') or l.resultado_llamada == 'cita_agendada':
+            e['citas'] += 1
+        if l.estado == 'matriculado':
+            e['matriculados'] += 1
+
+        asesor_k = l.asignado_a or 'sin_asignar'
+        a_stat = por_asesor.setdefault(asesor_k, {'leads': 0, 'frt_s': [], 'art_s': []})
+        a_stat['leads'] += 1
+        if l.primera_respuesta_en and l.creado_en:
+            diff = max(0, (l.primera_respuesta_en - l.creado_en).total_seconds())
+            frt_vals.append(diff)
+            a_stat['frt_s'].append(diff)
+        if l.resuelto_en and l.creado_en:
+            diff = max(0, (l.resuelto_en - l.creado_en).total_seconds())
+            art_vals.append(diff)
+            a_stat['art_s'].append(diff)
+
+    asesores_resumen = {
+        k: {
+            'leads': v['leads'],
+            'frt_promedio_seg': round(sum(v['frt_s']) / len(v['frt_s']), 1) if v['frt_s'] else None,
+            'art_promedio_seg': round(sum(v['art_s']) / len(v['art_s']), 1) if v['art_s'] else None,
+        }
+        for k, v in por_asesor.items()
+    }
+    top_gaps = [
+        {"pregunta": p.pregunta, "veces": p.veces, "empresa_id": p.empresa_id, "estado": p.estado}
+        for p in PreguntaPendiente.query.order_by(PreguntaPendiente.veces.desc()).limit(10).all()
+    ]
+    return {
+        "total_usuarios": total_usuarios,
+        "tasa_contencion_bot_pct": contencion,
+        "frt_promedio_seg": round(sum(frt_vals) / len(frt_vals), 1) if frt_vals else None,
+        "art_promedio_seg": round(sum(art_vals) / len(art_vals), 1) if art_vals else None,
+        "asesores": asesores_resumen,
+        "embudo_por_origen": embudo_origen,
+        "top_brechas_ia": top_gaps,
+    }
+
+
+@main.route('/api/reportes/kpis')
+@admin_required
+def api_reportes_kpis():
+    return jsonify(_calcular_kpis()), 200
+
+
+@main.route('/admin/reportes/kpis.csv')
+@admin_required
+def admin_reportes_kpis_csv():
+    """Exporta reporte gerencial KPI en CSV delimitado por ';' con BOM UTF-8 (directo para Excel)."""
+    import csv
+    from io import StringIO
+    k = _calcular_kpis()
+    buf = StringIO()
+    buf.write('\ufeff')  # BOM UTF-8 para Excel
+    w = csv.writer(buf, delimiter=';')
+    w.writerow(['SECCION', 'METRICA / ORIGEN / ASESOR', 'VALOR 1', 'VALOR 2', 'VALOR 3', 'VALOR 4'])
+    w.writerow(['RESUMEN', 'Tasa de Contencion EVO (%)', k['tasa_contencion_bot_pct'], '', '', ''])
+    w.writerow(['RESUMEN', 'Total Contactos', k['total_usuarios'], '', '', ''])
+    w.writerow(['RESUMEN', 'FRT Promedio (seg)', k['frt_promedio_seg'] or '-', '', '', ''])
+    w.writerow(['RESUMEN', 'ART Promedio (seg)', k['art_promedio_seg'] or '-', '', '', ''])
+    w.writerow([])
+    w.writerow(['EMBUDO_ORIGEN', 'Origen', 'Ingresados', 'Contactados', 'Citas', 'Matriculados'])
+    for orig, d in k['embudo_por_origen'].items():
+        w.writerow(['EMBUDO_ORIGEN', orig, d['ingresados'], d['contactados'], d['citas'], d['matriculados']])
+    w.writerow([])
+    w.writerow(['ASESORES', 'Asesor', 'Leads', 'FRT Prom (seg)', 'ART Prom (seg)', ''])
+    for asr, d in k['asesores'].items():
+        w.writerow(['ASESORES', asr, d['leads'], d['frt_promedio_seg'] or '-', d['art_promedio_seg'] or '-', ''])
+    w.writerow([])
+    w.writerow(['BRECHAS_IA', 'Pregunta', 'Veces', 'Estado', 'Empresa ID', ''])
+    for g_item in k['top_brechas_ia']:
+        w.writerow(['BRECHAS_IA', g_item['pregunta'], g_item['veces'], g_item['estado'], g_item['empresa_id'] or '', ''])
+    return Response(
+        buf.getvalue().encode('utf-8'),
+        mimetype='text/csv; charset=utf-8',
+        headers={'Content-Disposition': 'attachment; filename=reporte_kpis_evo.csv'},
+    )
 
 
 # --- 5. GESTIÓN DE USUARIOS Y PERFIL ---
@@ -981,13 +1232,188 @@ def ia_panel():
     from . import ia as ia_router
     hoy = db.session.query(func.coalesce(func.sum(IaUso.mensajes), 0)).filter(IaUso.dia == date.today()).scalar()
     aj = db.session.get(Ajuste, 'ia_conocimiento')
+    empresas = Empresa.query.order_by(Empresa.orden.asc(), Empresa.id.asc()).all()
+    empresas_map = {e.id: e.nombre_comercial for e in empresas}
+    campanas = ReglaCampana.query.order_by(ReglaCampana.id.desc()).all()
+    preguntas_pendientes = (
+        PreguntaPendiente.query.filter_by(estado='pendiente')
+        .order_by(PreguntaPendiente.veces.desc(), PreguntaPendiente.creado_en.desc())
+        .limit(50).all()
+    )
     catalogo = 'MODO DEMO' if Config.CAT_API_MOCK else (Config.CAT_API_URL or 'Texto oficial (/admin/ia)')
+    saludo_preview = (Config.BOT_DEFAULT_GREETING or '').replace('{{BOT_NAME}}', Config.BOT_NAME)
     return render_template('ia.html', activa=Config.IA_ENABLED, proveedor=Config.IA_PROVIDER, respaldo=Config.IA_PROVIDER_RESPALDO,
                            gemini_modelo=Config.GEMINI_MODEL, openrouter_modelos=', '.join(Config.OPENROUTER_MODELS),
                            hoy=hoy, tope=Config.IA_MAX_LLAMADAS_DIA, catalogo=catalogo, aviso=Config.IA_AVISO,
                            ultimo_error=ia_router.ULTIMO_ERROR,
+                           empresas=empresas, empresas_map=empresas_map, campanas=campanas,
+                           preguntas_pendientes=preguntas_pendientes,
+                           saludo_preview=saludo_preview,
                            conocimiento=aj.valor if aj else '',
                            actualizado=(f"{to_local(aj.actualizado_en)} por {aj.actualizado_por}" if aj and aj.actualizado_en else ''))
+
+
+@main.route('/admin/ia/campanas/guardar', methods=['POST'])
+@admin_required
+def ia_campana_guardar():
+    nombre = (request.form.get('nombre') or '').strip()[:150]
+    if not nombre:
+        flash('El nombre de la campaña es obligatorio.', 'danger')
+        return redirect(url_for('main.ia_panel'))
+    emp_id = (request.form.get('empresa_id') or '').strip()
+    c = ReglaCampana(
+        nombre=nombre,
+        source_id=(request.form.get('source_id') or '').strip()[:100] or None,
+        palabras_clave=(request.form.get('palabras_clave') or '').strip()[:300],
+        empresa_id=int(emp_id) if emp_id.isdigit() else None,
+        programa=(request.form.get('programa') or '').strip()[:150],
+        mensaje_bienvenida=(request.form.get('mensaje_bienvenida') or '').strip()[:2000],
+        brochure_url=(request.form.get('brochure_url') or '').strip()[:500],
+        brochure_nombre=(request.form.get('brochure_nombre') or 'brochure.pdf').strip()[:120],
+        nodo_destino=(request.form.get('nodo_destino') or '').strip()[:50],
+        activo=True,
+    )
+    db.session.add(c)
+    db.session.commit()
+    flash(f'Regla de campaña «{c.nombre}» guardada.', 'success')
+    return redirect(url_for('main.ia_panel'))
+
+
+@main.route('/admin/ia/campanas/<int:cid>/eliminar', methods=['POST'])
+@admin_required
+def ia_campana_eliminar(cid):
+    c = db.session.get(ReglaCampana, cid)
+    if c:
+        db.session.delete(c)
+        db.session.commit()
+        flash('Regla de campaña eliminada.', 'info')
+    return redirect(url_for('main.ia_panel'))
+
+
+@main.route('/admin/ia/preguntas/<int:pid>/aprobar', methods=['POST'])
+@admin_required
+def ia_pregunta_aprobar(pid):
+    preg = db.session.get(PreguntaPendiente, pid)
+    if not preg:
+        flash('Pregunta no encontrada.', 'danger')
+        return redirect(url_for('main.ia_panel'))
+    resp_oficial = (request.form.get('respuesta_oficial') or '').strip()[:3000]
+    emp_id_raw = (request.form.get('empresa_id') or '').strip()
+    if not resp_oficial:
+        flash('Escribe la respuesta oficial antes de aprobar.', 'danger')
+        return redirect(url_for('main.ia_panel'))
+
+    target_emp_id = int(emp_id_raw) if emp_id_raw.isdigit() else preg.empresa_id
+    bloque = f"\n\nP: {preg.pregunta}\nR: {resp_oficial}"
+
+    emp = db.session.get(Empresa, target_emp_id) if target_emp_id else None
+    if emp:
+        emp.base_conocimiento = ((emp.base_conocimiento or '').rstrip() + bloque)[:15000]
+        emp.actualizado_por = g.user.username
+        destino = emp.nombre_comercial
+    else:
+        actual = Ajuste.obtener('ia_conocimiento', '')
+        Ajuste.guardar('ia_conocimiento', (actual.rstrip() + bloque)[:15000], g.user.username)
+        destino = 'bloque global'
+
+    preg.empresa_id = emp.id if emp else None
+    preg.respuesta_oficial = resp_oficial
+    preg.estado = 'aprobada'
+    preg.revisado_por = g.user.username
+    preg.revisado_en = utcnow()
+    db.session.commit()
+    flash(f'Pregunta aprobada e integrada automáticamente a la memoria IA ({destino}).', 'success')
+    return redirect(url_for('main.ia_panel'))
+
+
+@main.route('/admin/ia/preguntas/<int:pid>/descartar', methods=['POST'])
+@admin_required
+def ia_pregunta_descartar(pid):
+    preg = db.session.get(PreguntaPendiente, pid)
+    if preg:
+        preg.estado = 'descartada'
+        preg.revisado_por = g.user.username
+        preg.revisado_en = utcnow()
+        db.session.commit()
+        flash('Pregunta descartada.', 'info')
+    return redirect(url_for('main.ia_panel'))
+
+
+@main.route('/api/v1/ia/knowledge-gaps', methods=['POST'])
+@limiter.exempt
+@admin_required
+def api_ia_knowledge_gaps():
+    data = request.get_json(silent=True) or {}
+    pregunta = (data.get('pregunta') or '').strip()
+    if not pregunta:
+        return jsonify({"ok": False, "error": "Falta el campo pregunta"}), 400
+    emp_id = data.get('empresa_id')
+    reg = PreguntaPendiente.registrar(
+        pregunta=pregunta,
+        empresa_id=int(emp_id) if str(emp_id or '').isdigit() else None,
+        telefono=str(data.get('telefono') or ''),
+        contexto_previo=str(data.get('contexto_previo') or ''),
+    )
+    return jsonify({"ok": True, "id": reg.id, "veces": reg.veces}), 201
+
+
+@main.route('/admin/ia/empresas/guardar', methods=['POST'])
+@admin_required
+def ia_empresa_guardar():
+    eid = request.form.get('id', '').strip()
+    nombre = (request.form.get('nombre_comercial') or '').strip()[:150]
+    clave_raw = (request.form.get('clave') or '').strip().lower()
+    if not nombre:
+        flash('El nombre comercial de la empresa es obligatorio.', 'danger')
+        return redirect(url_for('main.ia_panel'))
+    if not clave_raw:
+        clave_raw = re.sub(r'[^a-z0-9]+', '_', nombre.lower()).strip('_')[:60] or 'empresa'
+    else:
+        clave_raw = re.sub(r'[^a-z0-9_-]+', '_', clave_raw).strip('_')[:60]
+
+    emp = db.session.get(Empresa, int(eid)) if eid.isdigit() else None
+    dup = Empresa.query.filter_by(clave=clave_raw).first()
+    if dup and (not emp or dup.id != emp.id):
+        flash(f'Ya existe otra empresa con la clave «{clave_raw}».', 'danger')
+        return redirect(url_for('main.ia_panel'))
+
+    if not emp:
+        emp = Empresa(clave=clave_raw)
+        db.session.add(emp)
+    else:
+        emp.clave = clave_raw
+
+    emp.nombre_comercial = nombre
+    emp.dominio_web = (request.form.get('dominio_web') or '').strip()[:255]
+    emp.horario_atencion = (request.form.get('horario_atencion') or '').strip()[:255]
+    emp.telefono_asesor = (request.form.get('telefono_asesor') or '').strip()[:30]
+    emp.cola_asesores = (request.form.get('cola_asesores') or 'general').strip()[:80]
+    emp.prompt_sistema = (request.form.get('prompt_sistema') or '').strip()[:6000]
+    emp.base_conocimiento = (request.form.get('base_conocimiento') or '').strip()[:15000]
+    emp.activo = request.form.get('activo') == '1'
+    try:
+        emp.orden = int(request.form.get('orden') or 0)
+    except ValueError:
+        emp.orden = 0
+    emp.actualizado_por = g.user.username
+    db.session.commit()
+    flash(f'Empresa «{emp.nombre_comercial}» guardada correctamente.', 'success')
+    return redirect(url_for('main.ia_panel'))
+
+
+@main.route('/admin/ia/empresas/<int:eid>/eliminar', methods=['POST'])
+@admin_required
+def ia_empresa_eliminar(eid):
+    emp = db.session.get(Empresa, eid)
+    if not emp:
+        flash('Empresa no encontrada.', 'danger')
+        return redirect(url_for('main.ia_panel'))
+    Usuario.query.filter_by(empresa_id=emp.id).update({'empresa_id': None})
+    nombre = emp.nombre_comercial
+    db.session.delete(emp)
+    db.session.commit()
+    flash(f'Empresa «{nombre}» eliminada.', 'success')
+    return redirect(url_for('main.ia_panel'))
 
 
 @main.route('/admin/ia/ajustes', methods=['POST'])
@@ -1020,7 +1446,8 @@ def ia_probar():
 def api_ia_simular():
     from . import asistente
     data = request.get_json(silent=True) or {}
-    res = asistente.simular(data.get('pregunta', ''))
+    emp_id = data.get('empresa_id')
+    res = asistente.simular(data.get('pregunta', ''), empresa_id=emp_id or None)
     return jsonify(res), 200
 
 
@@ -1224,12 +1651,24 @@ def editor():
 
         if link and not re.match(r'^https?://', link, re.I):
             return redirect(url_for('main.editor', error='link', active=clave))
+        tipo_nodo = (request.form.get('tipo_nodo') or 'botones').strip().lower()
+        if tipo_nodo not in ('botones', 'lista', 'documento', 'accion'):
+            tipo_nodo = 'botones'
+        texto_boton_lista = (request.form.get('texto_boton_lista') or 'Ver opciones').strip()[:30]
+        nodo_padre = (request.form.get('nodo_padre') or '').strip()[:50] or None
+        documento_url = (request.form.get('documento_url') or '').strip()[:500] or None
+        documento_nombre = (request.form.get('documento_nombre') or '').strip()[:120] or None
+        emp_id_raw = (request.form.get('empresa_id') or '').strip()
+        if documento_url and not re.match(r'^https?://', documento_url, re.I):
+            return redirect(url_for('main.editor', error='link', active=clave))
         if botones_json:
             try:
                 items = json.loads(botones_json)
-                assert isinstance(items, list) and len(items) <= 3
+                max_items = 10 if tipo_nodo == 'lista' else 3
+                max_title = 24 if tipo_nodo == 'lista' else 20
+                assert isinstance(items, list) and len(items) <= max_items
                 assert all(isinstance(b, dict) and b.get('id') and b.get('title') for b in items)
-                assert all(len(str(b['title'])) <= 20 and len(str(b['id'])) <= 256 for b in items)
+                assert all(len(str(b['title'])) <= max_title and len(str(b['id'])) <= 256 for b in items)
             except (ValueError, AssertionError):
                 return redirect(url_for('main.editor', error='botones', active=clave))
 
@@ -1244,6 +1683,12 @@ def editor():
         res.texto = texto
         res.link = link[:255]
         res.botones_json = botones_json or None
+        res.tipo_nodo = tipo_nodo
+        res.texto_boton_lista = texto_boton_lista
+        res.nodo_padre = nodo_padre
+        res.documento_url = documento_url
+        res.documento_nombre = documento_nombre
+        res.empresa_id = int(emp_id_raw) if emp_id_raw.isdigit() else None
         db.session.commit()
         return redirect(url_for('main.editor', saved='1', active=clave))
 
@@ -1256,6 +1701,12 @@ def editor():
             "texto": r.texto or "",
             "link": r.link or "",
             "botones_json": r.botones_json or "",
+            "tipo_nodo": r.tipo_nodo or "botones",
+            "texto_boton_lista": r.texto_boton_lista or "Ver opciones",
+            "nodo_padre": r.nodo_padre or "",
+            "documento_url": r.documento_url or "",
+            "documento_nombre": r.documento_nombre or "",
+            "empresa_id": r.empresa_id or "",
         }
         for r in respuestas
     ]

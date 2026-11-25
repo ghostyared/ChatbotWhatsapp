@@ -6,14 +6,30 @@ Flujo guiado de derivación a Call Center / Asesor humano:
   4. Pausa el bot para que el agente de Call Center atienda el chat o lo llame.
 """
 import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from config import Config
 from .. import endpoints_client as ep_cli
-from ..models import Lead, db
+from ..models import Lead, db, utcnow
 from ..services import enviar_botones, enviar_texto
 from . import estado
 
 logger = logging.getLogger(__name__)
+
+
+def en_horario_atencion(ahora_local=None):
+    """Devuelve True si la hora actual (en APP_TIMEZONE) está dentro del horario de atención humana."""
+    if ahora_local is None:
+        try:
+            tz = ZoneInfo(Config.APP_TIMEZONE)
+        except Exception:
+            tz = None
+        ahora_local = datetime.now(tz)
+    return (
+        ahora_local.weekday() in Config.ATENCION_DIAS
+        and Config.ATENCION_HORA_INICIO <= ahora_local.hour < Config.ATENCION_HORA_FIN
+    )
 
 
 def notificar_callcenter(lead):
@@ -52,7 +68,22 @@ def notificar_callcenter(lead):
 
 
 def iniciar(ctx):
-    estado.iniciar(ctx.tel, "asesor", "sede", {})
+    if not en_horario_atencion():
+        estado.iniciar(ctx.tel, "asesor", "franja", {"fuera_horario": True})
+        enviar_botones(
+            ctx.tel,
+            f"🕒 *Atención fuera de horario*\n\n"
+            f"Nuestro horario de asesores es de *{Config.ATENCION_HORA_INICIO:02d}:00 a {Config.ATENCION_HORA_FIN:02d}:00*.\n"
+            f"Déjanos agendada tu llamada y te contactamos en el horario que prefieras. ¿En qué franja te llamamos?",
+            [
+                ("ase_franja:Mañana (9am - 12pm)", "🌅 Mañana (9-12)"),
+                ("ase_franja:Tarde (2pm - 6pm)", "🌆 Tarde (2-6)"),
+                ("ase_franja:Otro horario", "📅 Otro horario"),
+            ],
+        )
+        return
+
+    estado.iniciar(ctx.tel, "asesor", "sede", {"fuera_horario": False})
     enviar_botones(
         ctx.tel,
         "📞 *Atención con un asesor*\n\nCon gusto te comunicamos con nuestro equipo para llamarte o atenderte por este chat.\n"
@@ -64,6 +95,21 @@ def iniciar(ctx):
 def continuar(ctx, st):
     d = estado.datos(st)
     paso = st.paso
+
+    if paso == "franja":
+        if ctx.btn_id.startswith("ase_franja:"):
+            franja = ctx.btn_id.split(":", 1)[1]
+        elif ctx.tipo == "text" and ctx.txt.strip():
+            franja = ctx.txt.strip()[:80]
+        else:
+            enviar_texto(ctx.tel, "Indícanos en qué horario prefieres que te llamemos (ej. *Mañana 10am* o *Tarde 3pm*).")
+            return True
+        estado.avanzar(st, "datos", franja=franja, sede=d.get("sede") or "Cita programada")
+        enviar_texto(
+            ctx.tel,
+            f"Anotado (*{franja}*). Escribe tu *nombre completo*, la *institución/carrera de interés* y el motivo de tu consulta para agendar tu llamada.",
+        )
+        return True
 
     if paso == "sede":
         if ctx.btn_id.startswith("ase_sede:"):
@@ -87,6 +133,8 @@ def continuar(ctx, st):
         detalle = ctx.txt.strip()[:400]
         nombre_lead = detalle.splitlines()[0][:120]
         sede = d.get("sede") or "General"
+        franja = d.get("franja") or ""
+        fuera_horario = bool(d.get("fuera_horario"))
 
         lead = Lead.query.filter_by(telefono=ctx.tel).filter(
             Lead.estado.in_(("nuevo", "contactado", "visita"))
@@ -94,25 +142,40 @@ def continuar(ctx, st):
         lead.nombre = nombre_lead if len(nombre_lead) <= 60 else (ctx.nombre or nombre_lead[:60])
         lead.sede_nombre = sede[:120]
         lead.comentario = detalle
-        lead.resumen_ia = f"Solicitó asesor/llamada para {sede}: {detalle}"
+        if franja:
+            lead.visita_pref = franja[:120]
+        lead.resumen_ia = (
+            f"Cita/llamada programada ({franja}) para {sede}: {detalle}"
+            if franja else f"Solicitó asesor/llamada para {sede}: {detalle}"
+        )
         lead.quiere_asesor = True
         lead.prioridad = "alta"
-        lead.resultado_llamada = "pendiente"
-        if not lead.estado:
-            lead.estado = "nuevo"
+        lead.resultado_llamada = "cita_agendada" if franja else "pendiente"
+        lead.estado = "visita" if franja else (lead.estado or "nuevo")
         db.session.add(lead)
         db.session.commit()
 
         lead.asesor_avisado = notificar_callcenter(lead)
-        ctx.usu.bot_pausado = True
+        if not fuera_horario:
+            ctx.usu.bot_pausado = True
+            ctx.usu.estado_chat = "en_cola"
+            ctx.usu.esperando_asesor_desde = utcnow()
         db.session.commit()
         estado.terminar(ctx.tel)
 
-        enviar_texto(
-            ctx.tel,
-            f"✅ ¡Listo! Registramos tu solicitud (*#{lead.id}*).\n\n"
-            "Un asesor de nuestro equipo se comunicará contigo muy pronto por llamada o por este mismo WhatsApp. ¡Gracias!",
-        )
+        if franja:
+            enviar_botones(
+                ctx.tel,
+                f"📅 ¡Listo! Agendamos tu llamada (*#{lead.id}*) para *{franja}*.\n\n"
+                f"Un asesor revisará tu consulta y te contactará en ese horario. ¡Gracias!",
+                [("CMD_MAIN_MENU", "🏠 Menú Principal")],
+            )
+        else:
+            enviar_texto(
+                ctx.tel,
+                f"✅ ¡Listo! Registramos tu solicitud (*#{lead.id}*).\n\n"
+                "Un asesor de nuestro equipo se comunicará contigo muy pronto por llamada o por este mismo WhatsApp. ¡Gracias!",
+            )
         return True
 
     estado.terminar(ctx.tel)

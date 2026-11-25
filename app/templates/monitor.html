@@ -357,6 +357,12 @@
             
             <div class="search-container">
                 <input type="text" id="searchInput" placeholder="Buscar contacto o teléfono..." onkeyup="filterContacts()">
+                <div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap;">
+                    <button type="button" class="flt-btn active" onclick="setEstadoFilter('todos', this)" style="flex:1;padding:4px 6px;font-size:11px;border-radius:6px;border:1px solid #2f3b44;background:#005c4b;color:#fff;cursor:pointer;">Todos</button>
+                    <button type="button" class="flt-btn" onclick="setEstadoFilter('en_cola', this)" style="flex:1;padding:4px 6px;font-size:11px;border-radius:6px;border:1px solid #2f3b44;background:#202c33;color:#f59e0b;cursor:pointer;">⏳ Cola</button>
+                    <button type="button" class="flt-btn" onclick="setEstadoFilter('atendido', this)" style="flex:1;padding:4px 6px;font-size:11px;border-radius:6px;border:1px solid #2f3b44;background:#202c33;color:#53bdeb;cursor:pointer;">👤 Asesor</button>
+                    <button type="button" class="flt-btn" onclick="setEstadoFilter('bot', this)" style="flex:1;padding:4px 6px;font-size:11px;border-radius:6px;border:1px solid #2f3b44;background:#202c33;color:#00a884;cursor:pointer;">🤖 EVO</button>
+                </div>
             </div>
         
         <div class="chat-list" id="chatListContainer">
@@ -379,29 +385,49 @@
     <div class="main-chat">
         {% if tel_activo %}
         <div class="chat-header">
-            <div class="user-active">
-                <i class="fa-solid fa-circle-user" style="font-size: 30px; margin-right: 15px; color: var(--text-secondary);"></i>
-                <h3>{{ tel_activo }}</h3>
-                <button id="toggleBotBtn" onclick="toggleBot()" style="margin-left: 20px; padding: 5px 15px; font-size: 12px; background: #333; color: white; border-radius: 5px; cursor: pointer; border: 1px solid #555;">
+            <div class="user-active" style="flex-wrap:wrap;gap:8px;">
+                <i class="fa-solid fa-circle-user" style="font-size: 30px; margin-right: 10px; color: var(--text-secondary);"></i>
+                <h3 style="margin:0;">{{ tel_activo }}</h3>
+                <span id="chatStateBadge" style="font-size:11px;padding:3px 9px;border-radius:12px;background:#202c33;color:#8696a0;border:1px solid #2f3b44;">BOT</span>
+                <button id="toggleBotBtn" onclick="toggleBot()" style="margin-left: 10px; padding: 5px 14px; font-size: 12px; background: #333; color: white; border-radius: 5px; cursor: pointer; border: 1px solid #555;">
                     <i class="fa-solid fa-robot"></i> <span id="botStatusText">Bot Activo</span>
                 </button>
+                {% if session.get('user_role') == 'admin' %}
+                <button onclick="reasignarChat()" style="padding: 5px 12px; font-size: 12px; background: #1e3a5f; color: #93c5fd; border-radius: 5px; cursor: pointer; border: 1px solid #3b82f6;">
+                    <i class="fa-solid fa-right-left"></i> Takeover
+                </button>
+                {% endif %}
             </div>
+        </div>
+
+        <div id="handoffBriefBar" style="display:none;padding:9px 18px;background:#152028;border-bottom:1px solid var(--border-color);font-size:12.5px;color:#d1d7db;">
+            <strong style="color:#00a884;"><i class="fa-solid fa-wand-magic-sparkles"></i> Ficha IA:</strong>
+            <span id="handoffBriefText"></span>
         </div>
 
         <div class="msg-container" id="chatBox">
             {% for m in mensajes %}
-            <div class="bubble {{ m.direccion }}">
+            <div class="bubble {{ 'INTERNO' if m.es_interno or m.direccion == 'INTERNO' else m.direccion }}" {% if m.es_interno or m.direccion == 'INTERNO' %}style="background:rgba(245,158,11,0.16);border:1px solid rgba(245,158,11,0.45);align-self:center;max-width:80%;"{% endif %}>
                 <span class="sender">
-                    {{ m.nombre if m.direccion == 'ENTRADA' else brand.bot_sender }}
+                    {% if m.es_interno or m.direccion == 'INTERNO' %}🔒 {{ m.nombre }}{% else %}{{ m.nombre if m.direccion == 'ENTRADA' else brand.bot_sender }}{% endif %}
                 </span>
                 <div>{{ m.contenido }}</div>
                 <span class="time-msg">{{ m.fecha|localtime('%H:%M') }}</span>
             </div>
             {% endfor %}
         </div>
+
+        <div id="atajosBar" style="padding:7px 18px;background:#162229;border-top:1px solid var(--border-color);display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <small style="color:var(--text-secondary);font-size:11.5px;"><i class="fa-solid fa-bolt"></i> Atajos:</small>
+        </div>
         
-        <div class="chat-input-container" style="padding: 15px 20px; background: var(--header-bg); display: flex; align-items: center; border-top: 1px solid var(--border-color);">
-            <input type="text" id="chatInput" placeholder="Escribe un mensaje al colaborador..." style="flex: 1; padding: 12px; border-radius: 20px; border: none; background: var(--input-bg); color: white; outline: none; margin-right: 15px;" onkeypress="if(event.key === 'Enter') sendMessage()">
+        <div class="chat-input-container" style="padding: 12px 20px; background: var(--header-bg); display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--border-color);">
+            <input type="text" id="chatInput" placeholder="Escribe un mensaje o usa los atajos (/saludo, /duda, /espera, /cierre)..." style="flex: 1; padding: 12px; border-radius: 20px; border: none; background: var(--input-bg); color: white; outline: none;" onkeypress="if(event.key === 'Enter') sendMessage()">
+            {% if session.get('user_role') == 'admin' %}
+            <button onclick="sendWhisper()" title="Modo Susurro: nota interna solo visible para asesores (NO se envía a WhatsApp)" style="background: rgba(245,158,11,0.2); color: #f59e0b; border: 1px solid rgba(245,158,11,0.5); border-radius: 18px; padding: 10px 14px; cursor: pointer; font-size: 12.5px; font-weight: 700;">
+                <i class="fa-solid fa-lock"></i> Susurro
+            </button>
+            {% endif %}
             <button onclick="sendMessage()" style="background: var(--accent-green); color: white; border: none; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px;">
                 <i class="fa-solid fa-paper-plane"></i>
             </button>
@@ -422,6 +448,30 @@
         const telActivo = "{{ tel_activo if tel_activo else 'none' }}";
         const chatBox = document.getElementById('chatBox');
         let lastMessageCount = {{ mensajes|length if mensajes else 0 }};
+        let estadoFilter = 'todos';
+        let prevEnColaCount = null;
+
+        function playQueueAlert() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = 880;
+                gain.gain.value = 0.08;
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.18);
+            } catch (e) {}
+        }
+
+        function setEstadoFilter(est, btn) {
+            estadoFilter = est;
+            document.querySelectorAll('.flt-btn').forEach(b => { b.style.background = '#202c33'; });
+            if (btn) btn.style.background = '#005c4b';
+            filterContacts();
+        }
 
         // Scroll to bottom on load
         if (chatBox) {
@@ -433,11 +483,10 @@
             const items = document.querySelectorAll('.chat-item');
             items.forEach(item => {
                 const text = item.innerText.toLowerCase();
-                if (text.includes(input)) {
-                    item.style.display = 'flex';
-                } else {
-                    item.style.display = 'none';
-                }
+                const est = item.dataset.estado || 'bot';
+                const matchText = text.includes(input);
+                const matchEst = (estadoFilter === 'todos') || (est === estadoFilter);
+                item.style.display = (matchText && matchEst) ? 'flex' : 'none';
             });
         }
 
@@ -460,39 +509,64 @@
                 // Update Sidebar Contacts
                 const chatList = document.getElementById('chatListContainer');
                 let newSidebarHtml = '';
+                let enColaActual = 0;
                 data.contactos.forEach(c => {
                     const activeClass = (c.tel === telActivo) ? 'active' : '';
                     const safeTel = escapeHtml(c.tel);
+                    const est = c.estado_chat || 'bot';
+                    if (est === 'en_cola') enColaActual++;
+                    const badge = est === 'en_cola'
+                        ? '<span style="background:rgba(245,158,11,.2);color:#f59e0b;border-radius:4px;padding:1px 5px;font-size:10px;margin-left:4px;">COLA</span>'
+                        : (est === 'atendido' ? '<span style="background:rgba(83,189,235,.2);color:#53bdeb;border-radius:4px;padding:1px 5px;font-size:10px;margin-left:4px;">ASESOR</span>' : '');
                     newSidebarHtml += `
-                        <div class="chat-item ${activeClass}" onclick="location.href='/monitor/${encodeURIComponent(c.tel)}'">
+                        <div class="chat-item ${activeClass}" data-estado="${escapeHtml(est)}" onclick="location.href='/monitor/${encodeURIComponent(c.tel)}'">
                             <i class="fa-solid fa-circle-user"></i>
                             <div class="chat-info">
                                 <div class="chat-info-top">
-                                    <strong>${escapeHtml(c.nom)}</strong>
+                                    <strong>${escapeHtml(c.nom)}${badge}</strong>
                                     <span class="last-time">${escapeHtml(c.ultima_fecha)}</span>
                                 </div>
                                 <small>📞 ${safeTel}</small>
                             </div>
                         </div>`;
                 });
+                if (prevEnColaCount !== null && enColaActual > prevEnColaCount) {
+                    playQueueAlert();
+                }
+                prevEnColaCount = enColaActual;
                 
                 // Only replace if content changed (to avoid losing search filter constantly)
                 if (document.getElementById('searchInput').value === '') {
                     chatList.innerHTML = newSidebarHtml;
+                    filterContacts();
                 }
 
                 // Update Chat Messages
                 if (telActivo !== 'none') {
-                    // Update bot status
+                    // Update bot status & state badge
                     updateBotStatusBtn(data.bot_pausado);
+                    const stateBadge = document.getElementById('chatStateBadge');
+                    if (stateBadge) {
+                        const est = (data.estado_chat || 'bot').toUpperCase();
+                        stateBadge.textContent = data.asignado_a ? `${est} · ${data.asignado_a}` : est;
+                    }
+                    const briefBar = document.getElementById('handoffBriefBar');
+                    const briefTxt = document.getElementById('handoffBriefText');
+                    if (briefBar && briefTxt && data.handoff_brief) {
+                        const b = data.handoff_brief;
+                        briefBar.style.display = 'block';
+                        briefTxt.textContent = `${b.nombre || '-'} | ${b.empresa || 'Sin empresa'} · ${b.programa || '-'} | Origen: ${b.origen}${b.campana ? ' (' + b.campana + ')' : ''} | Score: ${(b.score || 'frio').toUpperCase()} — ${b.resumen || ''}`;
+                    }
 
                     if (chatBox && data.mensajes.length > lastMessageCount) {
                         let newChatHtml = '';
                         data.mensajes.forEach(m => {
-                            const senderName = m.direccion === 'ENTRADA' ? m.nombre : {{ brand.bot_sender|tojson }};
-                            const safeDir = m.direccion === 'ENTRADA' ? 'ENTRADA' : 'SALIDA';
+                            const esInt = m.es_interno || m.direccion === 'INTERNO';
+                            const senderName = esInt ? ('🔒 ' + m.nombre) : (m.direccion === 'ENTRADA' ? m.nombre : {{ brand.bot_sender|tojson }});
+                            const safeDir = esInt ? 'INTERNO' : (m.direccion === 'ENTRADA' ? 'ENTRADA' : 'SALIDA');
+                            const extraStyle = esInt ? 'style="background:rgba(245,158,11,0.16);border:1px solid rgba(245,158,11,0.45);align-self:center;max-width:80%;"' : '';
                             newChatHtml += `
-                                <div class="bubble ${safeDir}">
+                                <div class="bubble ${safeDir}" ${extraStyle}>
                                     <span class="sender">${escapeHtml(senderName)}</span>
                                     <div>${escapeHtml(m.contenido)}</div>
                                     <span class="time-msg">${escapeHtml(m.fecha)}</span>
@@ -507,6 +581,60 @@
             } catch (error) {
                 console.error("Error fetching updates", error);
             }
+        }
+
+        async function cargarAtajos() {
+            if (telActivo === 'none') return;
+            try {
+                const r = await fetch('/api/plantillas_rapidas/' + encodeURIComponent(telActivo));
+                if (!r.ok) return;
+                const d = await r.json();
+                const bar = document.getElementById('atajosBar');
+                if (!bar || !d.plantillas) return;
+                d.plantillas.forEach(p => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.textContent = p.atajo;
+                    btn.title = p.titulo;
+                    btn.style.cssText = 'background:#202c33;color:#00a884;border:1px solid #2f3b44;border-radius:14px;padding:3px 10px;font-size:12px;font-weight:700;cursor:pointer;';
+                    btn.onclick = () => {
+                        const inp = document.getElementById('chatInput');
+                        if (inp) { inp.value = p.texto; inp.focus(); }
+                    };
+                    bar.appendChild(btn);
+                });
+            } catch (e) {}
+        }
+        cargarAtajos();
+        fetchUpdates();
+
+        async function sendWhisper() {
+            if (telActivo === 'none') return;
+            const input = document.getElementById('chatInput');
+            const msg = input.value.trim();
+            if (!msg) return;
+            input.value = '';
+            const r = await fetch('/api/whisper/' + encodeURIComponent(telActivo), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                body: JSON.stringify({ mensaje: msg })
+            });
+            if (r.ok) fetchUpdates();
+            else alert('No se pudo guardar el susurro interno.');
+        }
+
+        async function reasignarChat() {
+            if (telActivo === 'none') return;
+            const destino = prompt('Username del asesor destino (deja vacío para devolver a EVO):');
+            if (destino === null) return;
+            const body = destino.trim() ? { asignado_a: destino.trim() } : { devolver_bot: true };
+            const r = await fetch('/api/takeover/' + encodeURIComponent(telActivo), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                body: JSON.stringify(body)
+            });
+            if (r.ok) fetchUpdates();
+            else alert('No se pudo reasignar el chat.');
         }
 
         // Poll every 5 seconds without reloading

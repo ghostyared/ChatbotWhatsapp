@@ -497,13 +497,46 @@
                 <input type="text" name="q" value="{{ q }}" placeholder="Buscar por nombre, teléfono, sede o resumen...">
                 <button type="submit"><i class="fa-solid fa-magnifying-glass"></i> Buscar</button>
             </form>
-            <small style="color:var(--text-secondary);font-size:12px;">
-                <i class="fa-solid fa-phone-volume" style="color:#00a884;"></i>
-                Pulsa <strong>Llamar</strong> para marcar desde móvil/softphone VoIP o <strong>Chat</strong> para escribir por WhatsApp.
-            </small>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                <button type="button" id="btnVistaToggle" onclick="toggleVistaLeads()" class="btn-chat" style="cursor:pointer;padding:7px 12px;font-size:12.5px;">
+                    <i class="fa-solid fa-table-columns"></i> Vista Kanban
+                </button>
+                <small style="color:var(--text-secondary);font-size:12px;">
+                    <i class="fa-solid fa-phone-volume" style="color:#00a884;"></i>
+                    Pulsa <strong>Llamar</strong>, <strong>Chat</strong> o <strong>HSM</strong> para contactar al lead.
+                </small>
+            </div>
         </div>
 
-        <div class="table-card">
+        <div id="kanbanBoard" style="display:none;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">
+            {% for est in estados %}
+            <div style="background:var(--card-bg);border:1px solid var(--border-color);border-radius:10px;padding:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border-color);">
+                    <span class="badge-estado estado-{{ est }}" style="font-size:12px;">{{ est|capitalize }}</span>
+                    <small style="color:var(--text-secondary);">{{ conteos.get(est, 0) }}</small>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    {% for l in pag.items if l.estado == est %}
+                    <div style="background:#0f181e;border:1px solid var(--border-color);border-radius:8px;padding:10px;font-size:12.5px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <strong>#{{ l.id }} {{ l.nombre or 'Sin nombre' }}</strong>
+                            <span class="badge-estado prio-{{ l.prioridad or 'media' }}">{{ (l.prioridad or 'media')|upper }}</span>
+                        </div>
+                        <div style="color:#8696a0;font-size:11.5px;margin-top:4px;">{{ l.sede_nombre or '-' }} · {{ l.nivel or '' }}</div>
+                        {% if l.origen and l.origen != 'organico' %}<span class="chip" style="margin-top:4px;background:rgba(59,130,246,.18);color:#60a5fa;">📣 {{ l.origen }}</span>{% endif %}
+                        {% if l.score %}<span class="chip" style="margin-top:4px;background:rgba(245,158,11,.15);color:#fbbf24;">{{ l.score|upper }}</span>{% endif %}
+                        <div style="margin-top:6px;display:flex;gap:6px;">
+                            <a href="{{ url_for('main.monitor', tel=l.telefono) }}" class="btn-chat" style="font-size:11px;padding:3px 7px;"><i class="fa-solid fa-comments"></i> Chat</a>
+                            <a href="tel:+{{ (l.telefono_contacto or l.telefono)|replace('+','')|replace(' ','') }}" class="btn-call" style="font-size:11px;padding:3px 7px;"><i class="fa-solid fa-phone"></i> Llamar</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="table-card" id="listaLeadsCard">
             <table>
                 <thead><tr><th># / Prio</th><th>Contacto y Acciones</th><th>Sede / Interés</th><th>Resumen IA / Detalle</th><th>Asignado / Estado</th><th>Gestión Call Center</th></tr></thead>
                 <tbody>
@@ -530,11 +563,19 @@
                             </form>
                             {% endif %}
                         </div>
+                        <form method="POST" action="{{ url_for('main.lead_enviar_hsm', lid=l.id) }}" style="display:flex;gap:4px;margin-top:6px;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+                            <input type="text" name="template_name" placeholder="Plantilla HSM Meta..." style="width:125px;padding:3px 6px;font-size:11px;background:#202c33;border:1px solid #2f3b44;color:#e9edef;border-radius:5px;">
+                            <button type="submit" class="btn-chat" style="cursor:pointer;font-size:11px;padding:3px 7px;" title="Enviar plantilla HSM aprobada por Meta (funciona fuera de 24h)"><i class="fa-solid fa-paper-plane"></i> HSM</button>
+                        </form>
                     </td>
                     <td>
                         <strong>{{ l.sede_nombre or l.sede_id or '-' }}</strong><br>
                         <small style="color:#8696a0;">{{ l.nivel or '' }}</small>
                         {% if l.edad_hijo %}<br><span class="chip">👶 {{ l.edad_hijo }}</span>{% endif %}
+                        {% if l.origen and l.origen != 'organico' %}<br><span class="chip" style="background:rgba(59,130,246,.18);color:#60a5fa;">📣 {{ l.origen }}{% if l.campana_nombre %}: {{ l.campana_nombre[:24] }}{% endif %}</span>{% endif %}
+                        {% if l.score %}<span class="chip" style="background:rgba(245,158,11,.15);color:#fbbf24;">Score: {{ l.score|upper }}</span>{% endif %}
                     </td>
                     <td style="max-width:260px;">
                         {% if l.visita_pref %}<span class="chip">📅 {{ l.visita_pref }}</span>{% endif %}
@@ -591,5 +632,18 @@
             </div>
         </div>
     </div>
+    <script>
+        function toggleVistaLeads() {
+            const kanban = document.getElementById('kanbanBoard');
+            const lista = document.getElementById('listaLeadsCard');
+            const btn = document.getElementById('btnVistaToggle');
+            const mostrarKanban = kanban.style.display === 'none';
+            kanban.style.display = mostrarKanban ? 'grid' : 'none';
+            lista.style.display = mostrarKanban ? 'none' : 'block';
+            btn.innerHTML = mostrarKanban
+                ? '<i class="fa-solid fa-list"></i> Vista Lista'
+                : '<i class="fa-solid fa-table-columns"></i> Vista Kanban';
+        }
+    </script>
 </body>
 </html>

@@ -11,6 +11,47 @@ def utcnow():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+class Empresa(db.Model):
+    """Institución / empresa independiente (multi-tenant) con su propio contexto IA, URL y horario."""
+    __tablename__ = 'empresas'
+    id = db.Column(db.Integer, primary_key=True)
+    clave = db.Column(db.String(60), unique=True, nullable=False, index=True)
+    nombre_comercial = db.Column(db.String(150), nullable=False)
+    dominio_web = db.Column(db.String(255), default='')
+    horario_atencion = db.Column(db.String(255), default='Lunes a viernes, 08:00 a 18:00')
+    horario_json = db.Column(db.Text, default='')
+    prompt_sistema = db.Column(db.Text, default='')
+    base_conocimiento = db.Column(db.Text, default='')
+    telefono_asesor = db.Column(db.String(30), default='')
+    cola_asesores = db.Column(db.String(80), default='general')
+    activo = db.Column(db.Boolean, default=True, nullable=False)
+    orden = db.Column(db.Integer, default=0, nullable=False)
+    actualizado_por = db.Column(db.String(60))
+    actualizado_en = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
+    creado_en = db.Column(db.DateTime, default=utcnow)
+
+    @staticmethod
+    def seed_from_ajuste():
+        """Si aún no hay empresas pero existe conocimiento previo en Ajuste('ia_conocimiento'),
+        lo migra a una empresa inicial para no perder datos existentes."""
+        if Empresa.query.count() > 0:
+            return False
+        aj = db.session.get(Ajuste, 'ia_conocimiento')
+        if not aj or not (aj.valor or '').strip():
+            return False
+        emp = Empresa(
+            clave='general',
+            nombre_comercial=(Config.COMPANY_NAME or 'Institución Principal')[:150],
+            base_conocimiento=aj.valor,
+            activo=True,
+            orden=1,
+            actualizado_por=aj.actualizado_por or 'migracion',
+        )
+        db.session.add(emp)
+        db.session.commit()
+        return True
+
+
 class Usuario(db.Model):
     """Contacto de WhatsApp (quien escribe al bot)."""
     __tablename__ = 'usuarios'
@@ -24,6 +65,13 @@ class Usuario(db.Model):
     bloqueado_id_hasta = db.Column(db.DateTime, nullable=True)
     intentos_acad = db.Column(db.Integer, default=0, nullable=False)
     bloqueado_acad_hasta = db.Column(db.DateTime, nullable=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresas.id'), nullable=True, index=True)
+    saludo_enviado = db.Column(db.Boolean, default=False, nullable=False)
+    estado_chat = db.Column(db.String(20), default='bot', nullable=False, index=True)  # bot | en_cola | atendido
+    asignado_a = db.Column(db.String(60), nullable=True, index=True)
+    esperando_asesor_desde = db.Column(db.DateTime, nullable=True)
+    esperando_usuario_desde = db.Column(db.DateTime, nullable=True)
+    aviso_inactividad_enviado = db.Column(db.Boolean, default=False, nullable=False)
 
 
 class Mensaje(db.Model):
@@ -32,7 +80,8 @@ class Mensaje(db.Model):
     telefono = db.Column(db.String(20), index=True)
     nombre = db.Column(db.String(100))
     contenido = db.Column(db.Text)
-    direccion = db.Column(db.String(10))  # ENTRADA / SALIDA
+    direccion = db.Column(db.String(10))  # ENTRADA / SALIDA / INTERNO
+    es_interno = db.Column(db.Boolean, default=False, nullable=False)  # Modo Susurro (solo panel web)
     fecha = db.Column(db.DateTime, default=utcnow, index=True)
     wa_id = db.Column(db.String(128), unique=True, nullable=True)  # id de Meta: evita duplicados por reintentos
 
@@ -108,12 +157,81 @@ class Lead(db.Model):
     telefono_contacto = db.Column(db.String(30))
     resultado_llamada = db.Column(db.String(30), default='pendiente')
     resumen_ia = db.Column(db.Text)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresas.id'), nullable=True, index=True)
+    origen = db.Column(db.String(30), default='organico', index=True)     # organico|facebook_ads|instagram_ads|menu
+    campana_id = db.Column(db.String(100), nullable=True, index=True)
+    campana_nombre = db.Column(db.String(150), nullable=True)
+    ctwa_clid = db.Column(db.String(200), nullable=True)
+    score = db.Column(db.String(15), default='frio', index=True)          # frio|tibio|caliente
+    primera_respuesta_en = db.Column(db.DateTime, nullable=True)
+    resuelto_en = db.Column(db.DateTime, nullable=True)
     creado_en = db.Column(db.DateTime, default=utcnow, index=True)
     actualizado_en = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
 
     ESTADOS = ('nuevo', 'contactado', 'visita', 'matriculado', 'descartado')
     PRIORIDADES = ('alta', 'media', 'baja')
+    SCORES = ('frio', 'tibio', 'caliente')
     RESULTADOS_LLAMADA = ('pendiente', 'contactado', 'no_contesta', 'volver_llamar', 'cita_agendada', 'matriculado', 'descartado')
+
+
+class ReglaCampana(db.Model):
+    """Reglas de atribución Zero-Friction para campañas Click-to-WhatsApp (Facebook / Instagram Ads)."""
+    __tablename__ = 'reglas_campana'
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(150), nullable=False)
+    source_id = db.Column(db.String(100), nullable=True, index=True)      # ID de anuncio de Meta (referral.source_id)
+    palabras_clave = db.Column(db.String(300), default='')                # palabras separadas por coma en mensaje predeterminado
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresas.id'), nullable=True, index=True)
+    programa = db.Column(db.String(150), default='')
+    mensaje_bienvenida = db.Column(db.Text, default='')
+    brochure_url = db.Column(db.String(500), default='')
+    brochure_nombre = db.Column(db.String(120), default='brochure.pdf')
+    nodo_destino = db.Column(db.String(50), default='')
+    activo = db.Column(db.Boolean, default=True, nullable=False)
+    creado_en = db.Column(db.DateTime, default=utcnow)
+
+
+class PlantillaRapida(db.Model):
+    """Respuestas rápidas formales (/atajos) para colaboradores con variables {{usuario}}, {{asesor}}, {{url_empresa}}."""
+    __tablename__ = 'plantillas_rapidas'
+    id = db.Column(db.Integer, primary_key=True)
+    atajo = db.Column(db.String(40), unique=True, nullable=False, index=True)
+    titulo = db.Column(db.String(100), nullable=False)
+    contenido = db.Column(db.Text, nullable=False)
+    activo = db.Column(db.Boolean, default=True, nullable=False)
+
+    @staticmethod
+    def seed():
+        iniciales = [
+            (
+                '/saludo',
+                'Saludo formal de asesor',
+                "¡Hola, {{usuario}}! 😎\nTe saluda {{asesor}}, gracias por comunicarte con nosotros.\n"
+                "Para poder ayudarte mejor, ¿podrías brindarme un poco más de detalle sobre tu consulta, por favor? Estoy atento para apoyarte. 😊",
+            ),
+            (
+                '/duda',
+                'Seguimiento post-información',
+                "¿Tienes alguna duda sobre la información brindada? 🙌🏻",
+            ),
+            (
+                '/espera',
+                'Aviso de espera (2 min)',
+                "Tal vez en estos momentos no puedas responder, pero no te preocupes, estaré esperándote 2 minutos más para poderte ayudar.",
+            ),
+            (
+                '/cierre',
+                'Cierre formal por inactividad',
+                "Al no haber alguna respuesta, concluiremos con la conversación.\n"
+                "¡Gracias por escribirnos, {{usuario}}!\n"
+                "Puedes platicar con nosotros cuando lo necesites.\n"
+                "También te invitamos a {{url_empresa}} para acceder a tus beneficios.",
+            ),
+        ]
+        for atajo, titulo, contenido in iniciales:
+            if not PlantillaRapida.query.filter_by(atajo=atajo).first():
+                db.session.add(PlantillaRapida(atajo=atajo, titulo=titulo, contenido=contenido, activo=True))
+        db.session.commit()
 
 
 class IaUso(db.Model):
@@ -125,6 +243,64 @@ class IaUso(db.Model):
     mensajes = db.Column(db.Integer, default=0, nullable=False)
     tokens = db.Column(db.Integer, default=0, nullable=False)
     __table_args__ = (db.UniqueConstraint('telefono', 'dia', name='uq_ia_uso_tel_dia'),)
+
+
+class PreguntaPendiente(db.Model):
+    """Cola de aprendizaje continuo (Knowledge Gap Tracker): preguntas que la IA no pudo responder."""
+    __tablename__ = 'ia_preguntas_pendientes'
+    id = db.Column(db.Integer, primary_key=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresas.id'), nullable=True, index=True)
+    pregunta = db.Column(db.Text, nullable=False)
+    pregunta_norm = db.Column(db.String(300), nullable=False, index=True)
+    telefono = db.Column(db.String(20), index=True)
+    contexto_previo = db.Column(db.Text, default='')
+    veces = db.Column(db.Integer, default=1, nullable=False)
+    estado = db.Column(db.String(20), default='pendiente', nullable=False, index=True)  # pendiente|aprobada|descartada
+    respuesta_oficial = db.Column(db.Text, default='')
+    revisado_por = db.Column(db.String(60))
+    creado_en = db.Column(db.DateTime, default=utcnow, index=True)
+    revisado_en = db.Column(db.DateTime, nullable=True)
+
+    @staticmethod
+    def normalizar(texto):
+        import re
+        import unicodedata
+        t = (texto or '').lower().strip()
+        t = ''.join(c for c in unicodedata.normalize('NFD', t) if unicodedata.category(c) != 'Mn')
+        t = re.sub(r'[^a-z0-9ñ\s]+', ' ', t)
+        return re.sub(r'\s+', ' ', t).strip()[:300]
+
+    @staticmethod
+    def registrar(pregunta, empresa_id=None, telefono='', contexto_previo=''):
+        p = (pregunta or '').strip()[:1000]
+        if not p:
+            return None
+        norm = PreguntaPendiente.normalizar(p)
+        if not norm:
+            return None
+        existente = PreguntaPendiente.query.filter_by(
+            empresa_id=empresa_id, pregunta_norm=norm, estado='pendiente'
+        ).first()
+        if existente:
+            existente.veces = (existente.veces or 1) + 1
+            if telefono:
+                existente.telefono = str(telefono)[:20]
+            if contexto_previo and not existente.contexto_previo:
+                existente.contexto_previo = contexto_previo[:1000]
+            db.session.commit()
+            return existente
+        nueva = PreguntaPendiente(
+            empresa_id=empresa_id,
+            pregunta=p,
+            pregunta_norm=norm,
+            telefono=str(telefono or '')[:20],
+            contexto_previo=(contexto_previo or '')[:1000],
+            veces=1,
+            estado='pendiente',
+        )
+        db.session.add(nueva)
+        db.session.commit()
+        return nueva
 
 
 class Ajuste(db.Model):
@@ -243,6 +419,34 @@ class ApiEndpoint(db.Model):
                 timeout=8,
                 activo=False,
             ),
+            dict(
+                clave="registrar_comprobante",
+                nombre="Registrar Comprobante en Caja/Facturación",
+                descripcion="Opcional: sincroniza comprobantes recibidos por WhatsApp con el sistema financiero y devuelve numero_ticket.",
+                metodo="POST",
+                url=f"{base_url}/api/v1/estudiantes/comprobantes" if base_url else "",
+                auth_header=Config.ACAD_AUTH_HEADER or "Authorization",
+                auth_scheme=Config.ACAD_AUTH_SCHEME or "Bearer",
+                token=tok,
+                headers_json='{"Content-Type": "application/json"}',
+                body_template='{\n  "dni": "{dni}",\n  "empresa_id": {empresa_id},\n  "codigo_comprobante": "{codigo}",\n  "telefono": "{telefono}",\n  "nota": "{nota}"\n}',
+                timeout=10,
+                activo=False,
+            ),
+            dict(
+                clave="agendar_cita",
+                nombre="Agendar Cita / Llamada Programada (CRM)",
+                descripcion="Opcional: sincroniza citas o llamadas agendadas fuera de horario con tu CRM o agenda externa.",
+                metodo="POST",
+                url=f"{base_url}/api/v1/crm/citas" if base_url else "",
+                auth_header=Config.ACAD_AUTH_HEADER or "Authorization",
+                auth_scheme=Config.ACAD_AUTH_SCHEME or "Bearer",
+                token=tok,
+                headers_json='{"Content-Type": "application/json"}',
+                body_template='{\n  "lead_id": {lead_id},\n  "empresa_id": {empresa_id},\n  "franja": "{franja}",\n  "motivo": "{motivo}"\n}',
+                timeout=10,
+                activo=False,
+            ),
         ]
         for item in iniciales:
             existente = ApiEndpoint.query.filter_by(clave=item["clave"]).first()
@@ -264,7 +468,7 @@ class ApiEndpoint(db.Model):
 
 
 class RespuestaBot(db.Model):
-    """Nodo del flujo: texto + link opcional + botones (JSON) editable desde el panel."""
+    """Nodo del flujo: texto + link/documento opcional + botones o lista (JSON) editable desde el panel."""
     __tablename__ = 'respuestas_bot'
     id = db.Column(db.Integer, primary_key=True)
     clave = db.Column(db.String(50), unique=True)
@@ -272,6 +476,12 @@ class RespuestaBot(db.Model):
     texto = db.Column(db.Text)
     link = db.Column(db.String(255), nullable=True)
     botones_json = db.Column(db.Text, nullable=True)
+    tipo_nodo = db.Column(db.String(20), default='botones', nullable=False)  # botones | lista | documento | accion
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresas.id'), nullable=True, index=True)
+    nodo_padre = db.Column(db.String(50), nullable=True)
+    texto_boton_lista = db.Column(db.String(30), default='Ver opciones')
+    documento_url = db.Column(db.String(500), nullable=True)
+    documento_nombre = db.Column(db.String(120), nullable=True)
 
     @staticmethod
     def seed():

@@ -407,6 +407,12 @@ def _paso_menu(ctx, st, d):
         _consultar_generico(ctx, st, d, "consultar_comunicados", "comunicados", "📢 *Comunicados*", _formatear_comunicados)
         return True
 
+    if ctx.tipo == "text" and not op:
+        from ..asistente import _detectar_intencion_directa
+        if _detectar_intencion_directa(ctx.txt) == "comprobante":
+            estado.terminar(ctx.tel)
+            return False
+
     _mostrar_menu_alumno(ctx, nombre, sel)
     return True
 

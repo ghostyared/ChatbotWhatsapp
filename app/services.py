@@ -61,6 +61,12 @@ def enviar_api(payload, registro=None):
             txt_bot = payload.get('text', {}).get('body', '')
         elif tipo == 'interactive':
             txt_bot = payload.get('interactive', {}).get('body', {}).get('text', '')
+        elif tipo == 'document':
+            doc = payload.get('document', {})
+            txt_bot = f"[Documento: {doc.get('filename') or doc.get('link', '')}] {doc.get('caption', '')}".strip()
+        elif tipo == 'template':
+            tpl = payload.get('template', {})
+            txt_bot = f"[Plantilla HSM: {tpl.get('name', '')}]"
         registrar_msg(payload['to'], Config.bot_sender(), txt_bot, 'SALIDA')
     else:
         # No se registra el token ni el cuerpo completo; solo código y mensaje de Meta
@@ -112,6 +118,34 @@ def enviar_lista(tel, txt, texto_boton, filas, titulo_seccion="Opciones"):
         },
     }
     return enviar_api(payload)
+
+
+def enviar_documento(tel, url, filename="brochure.pdf", caption="", registro=None):
+    """Envía un documento PDF/brochure por enlace HTTPS a través de WhatsApp Cloud API."""
+    doc = {"link": url, "filename": (filename or "documento.pdf")[:120]}
+    if caption:
+        doc["caption"] = caption[:1024]
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": tel,
+        "type": "document",
+        "document": doc,
+    }
+    return enviar_api(payload, registro=registro)
+
+
+def enviar_plantilla(tel, nombre_template, idioma="es", componentes=None, registro=None):
+    """Envía una plantilla HSM aprobada por Meta (válida incluso fuera de la ventana de 24 h)."""
+    tpl = {"name": nombre_template, "language": {"code": idioma or "es"}}
+    if componentes:
+        tpl["components"] = componentes
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": tel,
+        "type": "template",
+        "template": tpl,
+    }
+    return enviar_api(payload, registro=registro)
 
 
 # ---------- Descarga de archivos recibidos (comprobantes) ----------

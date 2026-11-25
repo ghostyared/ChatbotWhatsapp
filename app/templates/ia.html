@@ -490,11 +490,154 @@
         </div>
 
         <div class="ia-card">
-            <h3>Propuesta de venta e información oficial</h3>
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:12px;">
+                <div>
+                    <h3 style="margin:0;"><i class="fa-solid fa-building"></i> Empresas e Instituciones (Contexto Aislado por Empresa)</h3>
+                    <p style="color:var(--text-secondary);font-size:13px;margin:6px 0 0;">
+                        Cada institución tiene su propia web (<code>{{ '{{url_empresa}}' }}</code>), horario, instrucciones y base de conocimiento.
+                        <b>EVO</b> enruta primero a la empresa correcta para nunca mezclar precios, sedes ni carreras.
+                    </p>
+                </div>
+                <button class="btn-guardar" type="button" onclick="nuevaEmpresa()">
+                    <i class="fa-solid fa-plus"></i> Nueva empresa
+                </button>
+            </div>
+
+            <div style="font-size:12.5px;color:var(--text-secondary);background:#1a252c;padding:10px 14px;border-radius:8px;margin-bottom:16px;">
+                <i class="fa-solid fa-robot" style="color:var(--accent-green);"></i>
+                Saludo por defecto (<code>BOT_NAME</code> / <code>BOT_DEFAULT_GREETING</code> en <code>.env</code>):
+                <strong style="color:var(--text-primary);">{{ saludo_preview }}</strong>
+            </div>
+
+            {% if empresas %}
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+                {% for e in empresas %}
+                <button type="button" class="tab-estado emp-tab {{ 'active' if loop.first else '' }}"
+                        data-emp-id="{{ e.id }}" onclick="seleccionarEmpresa({{ e.id }})">
+                    <i class="fa-solid fa-building-columns"></i> {{ e.nombre_comercial }}
+                    {% if not e.activo %}<span style="opacity:.7;">(inactiva)</span>{% endif %}
+                </button>
+                {% endfor %}
+            </div>
+
+            {% for e in empresas %}
+            <div class="emp-panel" id="empPanel-{{ e.id }}" style="display:{{ 'block' if loop.first else 'none' }};border:1px solid var(--border-color);border-radius:10px;padding:18px;background:#0f181e;">
+                <form method="POST" action="{{ url_for('main.ia_empresa_guardar') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="id" value="{{ e.id }}">
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:12px;">
+                        <div>
+                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Nombre comercial *</label>
+                            <input type="text" name="nombre_comercial" value="{{ e.nombre_comercial }}" required
+                                   style="width:100%;padding:9px 12px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Clave / slug</label>
+                            <input type="text" name="clave" value="{{ e.clave }}"
+                                   style="width:100%;padding:9px 12px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Dominio web (<code>{{ '{{url_empresa}}' }}</code>)</label>
+                            <input type="text" name="dominio_web" value="{{ e.dominio_web or '' }}" placeholder="https://www.institucion.edu.pe"
+                                   style="width:100%;padding:9px 12px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Horario de atención</label>
+                            <input type="text" name="horario_atencion" value="{{ e.horario_atencion or '' }}" placeholder="Lunes a viernes, 08:00 a 18:00"
+                                   style="width:100%;padding:9px 12px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">WhatsApp asesor (opcional)</label>
+                            <input type="text" name="telefono_asesor" value="{{ e.telefono_asesor or '' }}" placeholder="51999999999"
+                                   style="width:100%;padding:9px 12px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Cola de asesores / Orden</label>
+                            <div style="display:flex;gap:8px;">
+                                <input type="text" name="cola_asesores" value="{{ e.cola_asesores or 'general' }}"
+                                       style="flex:1;padding:9px 12px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);box-sizing:border-box;">
+                                <input type="number" name="orden" value="{{ e.orden or 0 }}" style="width:70px;padding:9px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom:12px;">
+                        <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Prompt / reglas específicas de esta empresa (opcional)</label>
+                        <textarea name="prompt_sistema" maxlength="6000" style="min-height:90px;" placeholder="Tono, políticas especiales o reglas propias de esta institución...">{{ e.prompt_sistema or '' }}</textarea>
+                    </div>
+
+                    <div style="margin-bottom:12px;">
+                        <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Base de conocimiento oficial (costos, sedes, carreras, requisitos, propuestas)</label>
+                        <textarea name="base_conocimiento" maxlength="15000" style="min-height:240px;" placeholder="Escribe aquí solo la información oficial de {{ e.nombre_comercial }}...">{{ e.base_conocimiento or '' }}</textarea>
+                    </div>
+
+                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+                            <input type="checkbox" name="activo" value="1" {{ 'checked' if e.activo else '' }}>
+                            Empresa activa en EVO
+                        </label>
+                        <div style="display:flex;gap:10px;">
+                            <button class="btn-guardar" type="submit"><i class="fa-solid fa-floppy-disk"></i> Guardar {{ e.nombre_comercial }}</button>
+                        </div>
+                    </div>
+                </form>
+                <form method="POST" action="{{ url_for('main.ia_empresa_eliminar', eid=e.id) }}" style="margin-top:10px;text-align:right;"
+                      onsubmit="return confirm('¿Eliminar la empresa {{ e.nombre_comercial }}?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn-no"><i class="fa-solid fa-trash"></i> Eliminar empresa</button>
+                </form>
+            </div>
+            {% endfor %}
+            {% else %}
+            <div style="padding:18px;border:1px dashed var(--border-color);border-radius:8px;color:var(--text-secondary);font-size:13.5px;">
+                Aún no has separado empresas individuales. Haz clic en <b>«Nueva empresa»</b> para crear cada institución (ej. Universidad Norbert Wiener, Instituto Carrión, Colegio Mariátegui) con su propio bloque aislado. Mientras tanto, EVO usa el bloque global de abajo.
+            </div>
+            {% endif %}
+
+            <div id="nuevaEmpresaBox" style="display:none;margin-top:16px;border:1px solid var(--accent-green);border-radius:10px;padding:18px;background:#0f181e;">
+                <h4 style="margin:0 0 12px;color:var(--accent-green);"><i class="fa-solid fa-plus-circle"></i> Registrar nueva empresa</h4>
+                <form method="POST" action="{{ url_for('main.ia_empresa_guardar') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="activo" value="1">
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:12px;">
+                        <div>
+                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Nombre comercial *</label>
+                            <input type="text" name="nombre_comercial" required placeholder="Ej: Instituto Carrión"
+                                   style="width:100%;padding:9px 12px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Clave (opcional, se autogenera)</label>
+                            <input type="text" name="clave" placeholder="carrion"
+                                   style="width:100%;padding:9px 12px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Dominio web (<code>{{ '{{url_empresa}}' }}</code>)</label>
+                            <input type="text" name="dominio_web" placeholder="https://www.acarrion.edu.pe"
+                                   style="width:100%;padding:9px 12px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Horario de atención</label>
+                            <input type="text" name="horario_atencion" value="Lunes a viernes, 08:00 a 18:00"
+                                   style="width:100%;padding:9px 12px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);box-sizing:border-box;">
+                        </div>
+                    </div>
+                    <div style="margin-bottom:12px;">
+                        <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Base de conocimiento oficial</label>
+                        <textarea name="base_conocimiento" maxlength="15000" style="min-height:180px;" placeholder="Carreras, sedes, pensiones, requisitos, propuesta de valor..."></textarea>
+                    </div>
+                    <div style="display:flex;justify-content:flex-end;gap:10px;">
+                        <button class="btn-sec" type="button" onclick="document.getElementById('nuevaEmpresaBox').style.display='none'">Cancelar</button>
+                        <button class="btn-guardar" type="submit"><i class="fa-solid fa-floppy-disk"></i> Crear empresa</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="ia-card">
+            <h3>Propuesta de venta e información oficial (bloque global / respaldo)</h3>
             <p style="color:var(--text-secondary);font-size:13px;margin-top:0;">
-                Todo lo que la IA puede afirmar sobre tus sedes (colegios e instituto): distritos, pensiones/matrículas, carreras,
-                propuesta de valor, diferenciales, requisitos, horarios, ofertas vigentes y respuestas a objeciones.
-                <b>Lo que no esté aquí (ni en una API de catálogo si la usas), la IA no lo inventará ni prometerá.</b>
+                Se usa si aún no hay empresas configuradas arriba o como respaldo general.
+                <b>Lo que no esté aquí ni en la empresa seleccionada (ni en una API de catálogo), la IA no lo inventará ni prometerá.</b>
             </p>
             <form method="POST" action="{{ url_for('main.ia_ajustes') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -507,11 +650,116 @@
         </div>
 
         <div class="ia-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
+                <h3 style="margin:0;">
+                    <i class="fa-solid fa-brain"></i> Cola de Aprendizaje IA (Preguntas sin respuesta)
+                    {% if preguntas_pendientes %}
+                    <span class="dup-flag" style="background:rgba(245,158,11,.2);color:#f59e0b;">{{ preguntas_pendientes|length }} pendientes</span>
+                    {% endif %}
+                </h3>
+            </div>
+            <p style="color:var(--text-secondary);font-size:13px;margin-top:0;">
+                Cuando un usuario pregunta algo que no figura en el contexto (ej. <em>«¿Tienen piscina?»</em>), EVO lo guarda aquí automáticamente.
+                Redacta la respuesta oficial y haz clic en <b>«Aprobar e integrar a la IA»</b> para sumarla a la memoria de la empresa correspondiente.
+            </p>
+            {% if preguntas_pendientes %}
+            <div style="display:flex;flex-direction:column;gap:12px;">
+                {% for p in preguntas_pendientes %}
+                <div style="border:1px solid var(--border-color);border-radius:8px;padding:14px;background:#0f181e;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+                        <div>
+                            <strong style="font-size:14.5px;color:var(--text-primary);">«{{ p.pregunta }}»</strong>
+                            <span class="chip" style="margin-left:8px;">{{ p.veces }}x consultada</span>
+                            <span class="badge-empresa badge-carrion" style="margin-left:4px;">{{ empresas_map.get(p.empresa_id, 'Global / Sin asignar') }}</span>
+                        </div>
+                        <small style="color:var(--text-secondary);">Tel: +{{ p.telefono or '-' }} · {{ p.creado_en|localtime }}</small>
+                    </div>
+                    <form method="POST" action="{{ url_for('main.ia_pregunta_aprobar', pid=p.id) }}" style="display:flex;flex-direction:column;gap:8px;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+                            <select name="empresa_id" style="padding:8px 10px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);font-size:13px;">
+                                <option value="">Integrar en bloque global</option>
+                                {% for e in empresas %}
+                                <option value="{{ e.id }}" {{ 'selected' if p.empresa_id == e.id else '' }}>Integrar en {{ e.nombre_comercial }}</option>
+                                {% endfor %}
+                            </select>
+                            <input type="text" name="respuesta_oficial" required placeholder="Escribe la respuesta oficial que EVO deberá dar en adelante..."
+                                   style="flex:1;min-width:260px;padding:9px 12px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);font-size:13.5px;">
+                            <button type="submit" class="btn-ok"><i class="fa-solid fa-check"></i> Aprobar e integrar a la IA</button>
+                        </div>
+                    </form>
+                    <form method="POST" action="{{ url_for('main.ia_pregunta_descartar', pid=p.id) }}" style="margin-top:6px;text-align:right;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn-no"><i class="fa-solid fa-xmark"></i> Descartar</button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div style="padding:14px;border:1px dashed var(--border-color);border-radius:8px;color:var(--text-secondary);font-size:13px;">
+                <i class="fa-solid fa-circle-check" style="color:var(--accent-green);"></i> No hay preguntas pendientes por revisar.
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="ia-card">
+            <h3><i class="fa-brands fa-meta"></i> Campañas Facebook / Instagram Ads (Atribución Zero-Friction)</h3>
+            <p style="color:var(--text-secondary);font-size:13px;margin-top:0;">
+                Cuando un prospecto llega desde un anuncio Click-to-WhatsApp (o con un mensaje predeterminado de campaña), EVO detecta el <code>source_id</code> o palabras clave, omite el menú inicial, entrega información/brochure directo y etiqueta el Lead con su origen.
+            </p>
+            <form method="POST" action="{{ url_for('main.ia_campana_guardar') }}" style="border:1px solid var(--border-color);border-radius:8px;padding:14px;background:#0f181e;margin-bottom:14px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:10px;">
+                    <input type="text" name="nombre" required placeholder="Nombre campaña (ej. Enfermería Marzo)" style="padding:8px 10px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);">
+                    <input type="text" name="source_id" placeholder="Meta Ad ID (opcional, referral.source_id)" style="padding:8px 10px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);">
+                    <input type="text" name="palabras_clave" placeholder="Palabras clave (ej. enfermeria,carrion)" style="padding:8px 10px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);">
+                    <select name="empresa_id" style="padding:8px 10px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);">
+                        <option value="">Empresa destino...</option>
+                        {% for e in empresas %}
+                        <option value="{{ e.id }}">{{ e.nombre_comercial }}</option>
+                        {% endfor %}
+                    </select>
+                    <input type="text" name="programa" placeholder="Carrera / Nivel / Taller" style="padding:8px 10px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);">
+                    <input type="text" name="brochure_url" placeholder="URL Brochure PDF (https://...)" style="padding:8px 10px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);">
+                </div>
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                    <input type="text" name="mensaje_bienvenida" placeholder="Mensaje de bienvenida directo (opcional, soporta {{ '{{nombre}}' }} y {{ '{{BOT_NAME}}' }})" style="flex:1;min-width:260px;padding:8px 10px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);">
+                    <button type="submit" class="btn-guardar"><i class="fa-solid fa-plus"></i> Guardar campaña</button>
+                </div>
+            </form>
+            {% if campanas %}
+            <div style="display:flex;flex-direction:column;gap:8px;">
+                {% for c in campanas %}
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 14px;border:1px solid var(--border-color);border-radius:8px;background:#0f181e;font-size:13px;">
+                    <div>
+                        <strong>{{ c.nombre }}</strong>
+                        <span class="badge-empresa badge-wiener" style="margin-left:6px;">{{ empresas_map.get(c.empresa_id, 'General') }}</span>
+                        {% if c.programa %}<span class="chip">{{ c.programa }}</span>{% endif %}
+                        {% if c.source_id %}<small style="color:var(--text-secondary);">Ad ID: <code>{{ c.source_id }}</code></small>{% endif %}
+                        {% if c.palabras_clave %}<small style="color:var(--text-secondary);margin-left:6px;">KW: <code>{{ c.palabras_clave }}</code></small>{% endif %}
+                    </div>
+                    <form method="POST" action="{{ url_for('main.ia_campana_eliminar', cid=c.id) }}" style="margin:0;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn-no"><i class="fa-solid fa-trash"></i></button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="ia-card">
             <h3><i class="fa-solid fa-flask"></i> Simulador de respuesta (prueba tu texto oficial)</h3>
             <p style="color:var(--text-secondary);font-size:13px;margin-top:0;">
                 Escribe una pregunta tal como lo haría un padre o postulante en WhatsApp (p. ej. <em>«Hola, quiero info de precios del colegio»</em> o <em>«Qué carreras tiene el instituto»</em>) para verificar cómo responde la IA con lo que guardaste arriba.
             </p>
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <select id="simEmpresa" style="padding:10px 14px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:8px;color:var(--text-primary);font-size:14px;">
+                    <option value="">Contexto global</option>
+                    {% for e in empresas %}
+                    <option value="{{ e.id }}">{{ e.nombre_comercial }}</option>
+                    {% endfor %}
+                </select>
                 <input type="text" id="simPregunta" placeholder="Escribe una pregunta de prueba..."
                        style="flex:1;min-width:260px;padding:10px 14px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:8px;color:var(--text-primary);font-size:14px;outline:none;">
                 <button class="btn-guardar" type="button" id="btnSimular" onclick="simularIA()">
@@ -528,8 +776,22 @@
 
     <script>
         const CSRF = document.querySelector('meta[name="csrf-token"]').content;
+        function seleccionarEmpresa(id) {
+            document.querySelectorAll('.emp-panel').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('.emp-tab').forEach(el => el.classList.remove('active'));
+            const panel = document.getElementById('empPanel-' + id);
+            if (panel) panel.style.display = 'block';
+            const tab = document.querySelector('.emp-tab[data-emp-id="' + id + '"]');
+            if (tab) tab.classList.add('active');
+        }
+        function nuevaEmpresa() {
+            const box = document.getElementById('nuevaEmpresaBox');
+            box.style.display = 'block';
+            box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
         async function simularIA() {
             const pregunta = document.getElementById('simPregunta').value.trim();
+            const empresa_id = document.getElementById('simEmpresa').value || null;
             if (!pregunta) return;
             const btn = document.getElementById('btnSimular');
             const box = document.getElementById('simBox');
@@ -542,12 +804,12 @@
                 const r = await fetch('/api/ia/simular', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-                    body: JSON.stringify({ pregunta })
+                    body: JSON.stringify({ pregunta, empresa_id })
                 });
                 const d = await r.json();
                 box.style.display = 'block';
                 if (d.ok) {
-                    meta.textContent = 'Proveedor: ' + (d.proveedor || '-') + ' · Modo: ' + d.modo_catalogo + ' · ' + d.tokens + ' tokens';
+                    meta.textContent = 'Empresa: ' + (d.empresa || 'Global') + ' · Proveedor: ' + (d.proveedor || '-') + ' · Modo: ' + d.modo_catalogo + ' · ' + d.tokens + ' tokens';
                     resp.textContent = d.respuesta;
                     if (d.problemas && d.problemas.length) {
                         warn.style.display = 'block';

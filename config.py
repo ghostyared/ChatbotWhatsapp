@@ -7,7 +7,12 @@ import os
 from urllib.parse import quote_plus, urlparse
 from dotenv import load_dotenv
 
-load_dotenv()
+try:
+    load_dotenv()
+except PermissionError:
+    # En contenedores montados (p. ej. pytest con -v $PWD:/src), .env puede tener chmod 600 de root;
+    # en ese caso las variables llegan por entorno o conftest.py.
+    pass
 
 
 def _host(url):
@@ -46,9 +51,19 @@ def _int_list(name, default):
 
 class Config:
     # --- IDENTIDAD DEL BOT / EMPRESA (solo presentación) ---
-    BOT_NAME = _str("BOT_NAME", "Asistente")
+    BOT_NAME = _str("BOT_NAME", "EVO")
     COMPANY_NAME = _str("COMPANY_NAME", "Mi Empresa")
     APP_TIMEZONE = _str("APP_TIMEZONE", "America/Lima")
+    BOT_DEFAULT_GREETING = _str(
+        "BOT_DEFAULT_GREETING",
+        "¡Hola! Soy {{BOT_NAME}}, tu asistente virtual. ¿Con qué institución deseas comunicarte hoy?",
+    )
+    HANDOFF_SLA_SECONDS = max(30, _int("HANDOFF_SLA_SECONDS", 180))
+    USER_INACTIVITY_WARNING_MIN = max(1, _int("USER_INACTIVITY_WARNING_MIN", 3))
+    USER_INACTIVITY_CLOSE_MIN = max(1, _int("USER_INACTIVITY_CLOSE_MIN", 2))
+    ATENCION_HORA_INICIO = _int("ATENCION_HORA_INICIO", 8)
+    ATENCION_HORA_FIN = _int("ATENCION_HORA_FIN", 18)
+    ATENCION_DIAS = _int_list("ATENCION_DIAS", "0,1,2,3,4")   # 0=Lun .. 6=Dom
 
     # --- WHATSAPP CLOUD API (META) ---
     TOKEN_PERMANENTE = _str("TOKEN_PERMANENTE")
@@ -88,6 +103,8 @@ class Config:
     ID_LOCK_MINUTES = _int("ID_LOCK_MINUTES", 30)
     MENU_KEYWORDS = [k.strip().lower() for k in
                      _str("MENU_KEYWORDS", "hola,inicio,menu,empezar,comenzar,ayuda,info").split(",") if k.strip()]
+    GLOBAL_MENU_KEYWORDS = [k.strip().lower() for k in
+                            _str("GLOBAL_MENU_KEYWORDS", "inicio,menu,home,volver,0,empezar").split(",") if k.strip()]
     INACTIVE_STATES = [s.strip().lower() for s in
                        _str("INACTIVE_STATES", "inactivo,cesado,baja").split(",") if s.strip()]
 
@@ -145,7 +162,7 @@ class Config:
     OPENROUTER_BASE_URL = _str("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/")
     OPENROUTER_REFERER = _str("OPENROUTER_REFERER")                      # opcional: tu dominio (estadísticas en OpenRouter)
     GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
-    GEMINI_MODEL = _str("GEMINI_MODEL", "gemini-2.5-flash")
+    GEMINI_MODEL = _str("GEMINI_MODEL", "gemini-3.8-flash")
     GEMINI_BASE_URL = _str("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta").rstrip("/")
     IA_TIMEOUT = _int("IA_TIMEOUT", 20)
     IA_MAX_MSG_DIA_TEL = _int("IA_MAX_MSG_DIA_TEL", 30)          # tope de mensajes con IA por teléfono y día

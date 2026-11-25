@@ -24,8 +24,12 @@
 | 7 | Cabecera CSP opcional (`CONTENT_SECURITY_POLICY`) | ✅ Hecho (desactivada por defecto) |
 | 8 | Apagado ordenado de Gunicorn (`GUNICORN_GRACEFUL_TIMEOUT`) | ✅ Hecho |
 | 9 | Script `scripts/check-env.sh` (detecta variables faltantes en `.env`) | ✅ Hecho |
-| 10 | Vincular repositorio GitHub | ⏳ Pendiente (lo ejecuta el usuario, ver abajo) |
+| 10 | Vincular repositorio GitHub | ✅ Hecho (`origin/main`) |
 | 11 | Reconstruir y probar en Docker | ⏳ Pendiente (usuario) |
+| 12 | **Plan EVO — Fase 1**: Multi-Empresa (`/admin/ia`), variables `.env` (`BOT_NAME=EVO`, SLAs), reglas EVO, navegación global (`home`, `volver`, `0`, `CMD_MAIN_MENU`) | ✅ Hecho |
+| 13 | **Plan EVO — Fase 2**: Cola de aprendizaje IA (`ia_preguntas_pendientes`), soporte de nodos `lista` (≤10) y `documento` PDF, citas fuera de horario y contratos de API en `/admin/endpoints` | ✅ Hecho |
+| 14 | **Plan EVO — Fase 3**: Atribución Facebook/IG Ads (`referral` + `ReglaCampana`), envío HSM en `/admin/leads`, `/atajos` formales con variables y worker dedicado de timers SLA/inactividad (`scripts/worker_timers.py` + `docker-compose.yml`) | ✅ Hecho |
+| 15 | **Plan EVO — Fase 4**: Torre de Supervisión (`handoff_brief`, Modo Susurro `/api/whisper`, Takeover `/api/takeover`), KPIs (Contención/FRT/ART/Embudo/Brechas IA) y exportación CSV `;` UTF-8 (`/admin/reportes/kpis.csv`) | ✅ Hecho |
 
 ### Pendientes para próximas fases
 - [ ] Segundo factor en Portal del Alumno (cuando exista fecha de nacimiento / teléfono vinculado).
@@ -107,7 +111,7 @@ sudo docker compose logs -f --tail=100 app  # verificar arranque
 sudo docker compose run --rm --no-deps --entrypoint sh app -c "pip install -q pytest && python -m pytest -q"
 ```
 > Nota: `.dockerignore` excluye `tests/`; para correr tests en contenedor monta la carpeta:
-> `sudo docker run --rm -v "$PWD":/src -w /src qa-chatbot:latest sh -c "pip install -q --user pytest && python -m pytest -q -p no:cacheprovider"`
+> `sudo docker run --rm --entrypoint sh -v "$PWD":/src -w /src qa-chatbot:latest -c "pip install -q --target /tmp/pydeps pytest && PYTHONPATH=/tmp/pydeps python -m pytest -q -p no:cacheprovider"`
 
 ## Rollback
 ```bash
