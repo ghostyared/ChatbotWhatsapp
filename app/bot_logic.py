@@ -136,6 +136,25 @@ def _palabras(txt_norm):
     return set(re.findall(r"[a-z0-9ñ]+", txt_norm))
 
 
+def _transcribir_y_guardar_audio(tel, nombre_wa, media):
+    """Descarga una nota de voz de Meta, la transcribe con Gemini y registra el texto en el historial."""
+    from .services import descargar_media, registrar_msg, MediaError
+    from . import ia_gemini
+    media_id = (media or {}).get('id')
+    if not media_id:
+        return ""
+    try:
+        audio_bytes, mime = descargar_media(media_id, max_bytes=5 * 1024 * 1024)
+        texto = ia_gemini.transcribir_audio(audio_bytes, mime or (media or {}).get('mime') or 'audio/ogg')
+        if texto:
+            registrar_msg(tel, nombre_wa, f"🎙️ [Audio transcrito]: {texto}", 'ENTRADA', media_tipo='audio')
+        return texto
+    except MediaError:
+        return ""
+    except Exception:
+        return ""
+
+
 def _procesar_campana_ads(tel, txt, nombre, usu, referral):
     """Atribución Zero-Friction para campañas Click-to-WhatsApp (Facebook / Instagram Ads).
     Si coincide con una ReglaCampana activa (por source_id o palabras clave), vincula empresa,
@@ -248,9 +267,22 @@ def brain_gethi(tel, txt, btn_id, nombre_wa, tipo='text', media=None, referral=N
             enviar_texto(tel, "🙏 ¡Muchas gracias por tu calificación! Nos ayuda a seguir mejorando nuestra atención.")
             return
 
-    # Modo híbrido: un humano atiende, el bot calla
+    # Modo híbrido: un humano atiende, el bot calla (pero si envía audio, lo transcribimos para el asesor)
     if usu.bot_pausado:
+        if tipo == 'audio' and media and media.get('id') and Config.GEMINI_API_KEY:
+            _transcribir_y_guardar_audio(tel, nombre_wa, media)
         return
+
+    # Interpretación automática de notas de voz (audio -> texto vía Gemini multimodal)
+    if tipo == 'audio':
+        transcripcion = _transcribir_y_guardar_audio(tel, nombre_wa, media) if (media and media.get('id')) else ""
+        if transcripcion:
+            txt = transcripcion
+            txt_norm = normalizar_texto(txt)
+            tipo = 'text'
+        else:
+            enviar_texto(tel, "🎙️ Recibí tu nota de voz, pero no pude transcribirla en este momento. ¿Podrías escribirme tu consulta en texto, por favor? ✨")
+            return
 
     # Atribución inteligente de campañas (Facebook / Instagram Click-to-WhatsApp Ads)
     if tipo == 'text' and _procesar_campana_ads(tel, txt, nombre_wa, usu, referral):
@@ -293,6 +325,12 @@ def brain_gethi(tel, txt, btn_id, nombre_wa, tipo='text', media=None, referral=N
             usu.saludo_enviado = True
             db.session.commit()
         enviar_nodo(tel, 'inicio', {'nombre': nombre, 'bot_name': Config.BOT_NAME})
+        return
+
+    # B1b. Palabra clave "continuar" tras cierre por inactividad -> deriva directo a asesor
+    if tipo == 'text' and txt_norm == 'continuar':
+        estado_flujo.terminar(tel)
+        ACCIONES['acc_asesor'](ctx)
         return
 
     # B2. Selección rápida de empresa (enrutamiento multi-tenant para EVO)

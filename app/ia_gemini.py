@@ -56,3 +56,38 @@ def generar(system, contents, tools=None, temperatura=0.4):
         raise IaError(f"Gemini devolvió respuesta vacía (finishReason={cand.get('finishReason')})")
     content = {"role": content.get("role", "model"), "parts": partes}
     return content, tokens
+
+
+def transcribir_audio(audio_bytes, mime_type="audio/ogg"):
+    """Transcribe una nota de voz de WhatsApp usando Gemini multimodal (inlineData base64)."""
+    import base64
+    if not Config.GEMINI_API_KEY or not audio_bytes:
+        return ""
+    # Limpiar parámetros del mime (ej. "audio/ogg; codecs=opus" -> "audio/ogg")
+    mime_limpio = (mime_type or "audio/ogg").split(";", 1)[0].strip().lower()
+    b64 = base64.b64encode(audio_bytes).decode("ascii")
+    body = {
+        "contents": [{
+            "role": "user",
+            "parts": [
+                {"inlineData": {"mimeType": mime_limpio, "data": b64}},
+                {"text": "Transcribe fielmente este audio en español. Devuelve únicamente el texto transcrito, sin comentarios ni comillas."},
+            ],
+        }],
+        "generationConfig": {"temperature": 0.0, "maxOutputTokens": 400},
+    }
+    url = f"{Config.GEMINI_BASE_URL}/models/{Config.GEMINI_MODEL}:generateContent"
+    try:
+        r = requests.post(
+            url, json=body, timeout=Config.IA_TIMEOUT,
+            headers={"x-goog-api-key": Config.GEMINI_API_KEY, "Content-Type": "application/json"},
+        )
+        if r.status_code != 200:
+            logger.warning("Gemini audio respondió %s: %s", r.status_code, r.text[:250])
+            return ""
+        data = r.json()
+        partes = (data["candidates"][0].get("content") or {}).get("parts") or []
+        return "".join(p.get("text", "") for p in partes if not p.get("thought")).strip()
+    except Exception as e:
+        logger.warning("Error transcribiendo audio con Gemini: %s", e)
+        return ""

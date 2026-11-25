@@ -18,15 +18,15 @@ from .services import enviar_botones, enviar_texto
 logger = logging.getLogger(__name__)
 
 DEFAULT_AVISO_ESPERA = (
-    "Tal vez en estos momentos no puedas responder, pero no te preocupes, "
-    "estaré esperándote 2 minutos más para poderte ayudar."
+    "👀 ¿Sigues ahí?\n\n"
+    "Estaré disponible para ti durante los próximos 3 minutos para cualquier consulta. ⏳🙏🏻"
 )
 DEFAULT_CIERRE = (
-    "Al no haber alguna respuesta, concluiremos con la conversación.\n"
-    "¡Gracias por escribirnos, {{usuario}}!\n"
-    "Puedes platicar con nosotros cuando lo necesites.\n"
-    "También te invitamos a {{url_empresa}} para acceder a tus beneficios."
+    "¡Si el tiempo es un problema, no te preocupes! 😉\n\n"
+    "Vamos a cerrar el chat porque no recibimos respuesta. Cuando necesites ayuda, "
+    "simplemente escribe *Continuar* y un agente te atenderá 🚀 o *Menú* 📋 para explorar otras opciones."
 )
+DEFAULT_DESPEDIDA_FINAL = "¡Gracias por contactarte con {{empresa}}! 🇵🇪 😉"
 
 
 def interpolar_plantilla(texto, usuario_nombre="", asesor_nombre="", empresa=None):
@@ -115,6 +115,8 @@ def ejecutar_ciclo_timers(ahora=None):
         emp = db.session.get(Empresa, usu.empresa_id) if usu.empresa_id else None
         msg = interpolar_plantilla(tpl_cierre, usuario_nombre=usu.nombre_wa, empresa=emp)
         enviar_texto(usu.telefono, msg)
+        msg_final = interpolar_plantilla(DEFAULT_DESPEDIDA_FINAL, usuario_nombre=usu.nombre_wa, empresa=emp)
+        enviar_texto(usu.telefono, msg_final)
         usu.bot_pausado = False
         usu.estado_chat = 'bot'
         usu.esperando_usuario_desde = None

@@ -85,6 +85,11 @@ def _extraer_mensaje(msg):
         media = {'id': m.get('id', ''), 'mime': m.get('mime_type', ''),
                  'filename': m.get('filename', ''), 'caption': m.get('caption', '')}
         return tipo, f"[{tipo}{': ' + media['filename'] if media['filename'] else ''}]", '', media
+    if tipo == 'audio':
+        m = msg.get('audio', {})
+        media = {'id': m.get('id', ''), 'mime': m.get('mime_type', 'audio/ogg'),
+                 'voice': bool(m.get('voice', True))}
+        return 'audio', '[Nota de voz]', '', media
     return tipo or 'unknown', f"[{tipo or 'mensaje no soportado'}]", '', None
 
 

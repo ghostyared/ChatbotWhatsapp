@@ -1017,45 +1017,7 @@
 <body>
 
     <!-- 1. MENÚ GENERAL CORPORATIVO (IDÉNTICO AL RESTO DEL SISTEMA) -->
-    <header class="top-navbar">
-        <div class="brand-box">
-            <i class="fa-solid fa-robot"></i>
-            <span>{{ brand.bot_name }}</span>
-        </div>
-
-        <nav class="nav-tabs">
-            <a href="/dashboard" class="nav-tab">
-                <i class="fa-solid fa-chart-line"></i> Dashboard
-            </a>
-            <a href="/monitor" class="nav-tab">
-                <i class="fa-solid fa-comments"></i> Monitor en Vivo
-            </a>
-            {% if session.get('user_role') in ('admin', 'contabilidad') %}
-            <a href="/admin/comprobantes" class="nav-tab">
-                <i class="fa-solid fa-receipt"></i> Comprobantes{% if pendientes_comprobantes %} <span style="background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700;margin-left:4px;">{{ pendientes_comprobantes }}</span>{% endif %}
-            </a>
-            {% endif %}
-            <a href="/admin/endpoints" class="nav-tab">
-                <i class="fa-solid fa-plug"></i> Endpoints API
-            </a>
-            <a href="/admin/editor" class="nav-tab active">
-                <i class="fa-solid fa-pen-to-square"></i> Editor del Bot
-            </a>
-            <a href="/admin/colaboradores" class="nav-tab">
-                <i class="fa-solid fa-users"></i> Colaboradores
-            </a>
-            <a href="/admin/usuarios" class="nav-tab">
-                <i class="fa-solid fa-user-shield"></i> Usuarios y Perfil
-            </a>
-            <span style="color: #8696a0; font-size: 13px; margin: 0 4px; display: flex; align-items: center; gap: 6px;">
-                <i class="fa-solid fa-circle-user" style="color: #00a884; font-size: 16px;"></i>
-                <strong style="color: #e9edef;">{{ session.get('username', 'Admin') }}</strong>
-            </span>
-            <a href="/logout" class="nav-tab logout">
-                <i class="fa-solid fa-power-off"></i> Salir
-            </a>
-        </nav>
-    </header>
+    {% include "_navbar.html" %}
 
     <!-- 2. BARRA DE HERRAMIENTAS EXCLUSIVA DEL EDITOR (CANVAS TOOLBAR) -->
     <div class="editor-subbar">

@@ -92,3 +92,20 @@ def test_envio_material_imagen_video_y_csat(app, client, sent):
         bot_logic.brain_gethi("51966000333", "Botón: ⭐ Excelente", "csat:5", "Ana", tipo="interactive")
         l = Lead.query.filter_by(telefono="51966000333").first()
         assert l.csat == 5
+
+
+def test_transcripcion_nota_de_voz_y_palabra_continuar(app, sent, monkeypatch):
+    from app import ia_gemini
+    monkeypatch.setattr(services, "descargar_media", lambda mid, max_bytes: (b"FAKE_OGG_AUDIO", "audio/ogg"))
+    monkeypatch.setattr(ia_gemini, "transcribir_audio", lambda data, mime="audio/ogg": "Continuar")
+
+    with app.app_context():
+        # Cliente envía nota de voz diciendo "Continuar" -> se transcribe, se guarda y lanza flujo de asesor
+        bot_logic.brain_gethi(
+            "51977000444", "[Nota de voz]", "", "Carlos",
+            tipo="audio", media={"id": "media_aud_1", "mime": "audio/ogg"},
+        )
+        m = Mensaje.query.filter_by(telefono="51977000444", media_tipo="audio").first()
+        assert m is not None and "Continuar" in m.contenido
+        assert len(sent) >= 1
+

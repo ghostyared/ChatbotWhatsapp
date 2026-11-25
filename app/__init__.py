@@ -56,7 +56,8 @@ def create_app(validate_config=True):
     @app.context_processor
     def inject_brand():
         return {'brand': {'bot_name': Config.BOT_NAME, 'company': Config.COMPANY_NAME,
-                          'bot_sender': Config.bot_sender(), 'id_label': Config.ID_LABEL}}
+                          'bot_sender': Config.bot_sender(), 'id_label': Config.ID_LABEL,
+                          'require_id_validation': Config.REQUIRE_ID_VALIDATION}}
 
     @app.context_processor
     def inject_pendientes():

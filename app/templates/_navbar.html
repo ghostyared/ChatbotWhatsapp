@@ -1,0 +1,100 @@
+<style>
+    .top-navbar {
+        background-color: #202c33 !important;
+        min-height: 60px !important;
+        height: auto !important;
+        width: 100% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        padding: 8px 24px !important;
+        border-bottom: 1px solid #2f3b44 !important;
+        box-sizing: border-box !important;
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 1000 !important;
+        gap: 12px !important;
+        flex-wrap: wrap !important;
+    }
+    .top-navbar .brand-logo {
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+        font-size: 18px !important;
+        font-weight: 700 !important;
+        color: #00a884 !important;
+        white-space: nowrap !important;
+    }
+    .top-navbar .nav-tabs {
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        flex-wrap: wrap !important;
+    }
+    .top-navbar .nav-tab {
+        color: #aebac1 !important;
+        text-decoration: none !important;
+        padding: 7px 12px !important;
+        border-radius: 6px !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        transition: all 0.18s ease !important;
+        white-space: nowrap !important;
+    }
+    .top-navbar .nav-tab:hover {
+        background-color: #2a3942 !important;
+        color: #e9edef !important;
+    }
+    .top-navbar .nav-tab.active {
+        background-color: #005c4b !important;
+        color: #ffffff !important;
+    }
+    .top-navbar .nav-tab.logout {
+        color: #ef4444 !important;
+    }
+    .top-navbar .nav-tab.logout:hover {
+        background-color: rgba(239, 68, 68, 0.15) !important;
+    }
+</style>
+{% set _p = request.path %}
+{% set _rol = session.get('user_role') %}
+<header class="top-navbar">
+    <div class="brand-logo">
+        <i class="fa-solid fa-robot"></i>
+        <span>{{ brand.bot_name }} CRM</span>
+    </div>
+    <nav class="nav-tabs">
+        {% if _rol == 'admin' %}
+        <a href="/dashboard" class="nav-tab {{ 'active' if _p == '/dashboard' else '' }}"><i class="fa-solid fa-chart-line"></i> Dashboard</a>
+        {% endif %}
+        {% if _rol in ('admin', 'callcenter', 'lector') %}
+        <a href="/monitor" class="nav-tab {{ 'active' if _p.startswith('/monitor') else '' }}"><i class="fa-solid fa-comments"></i> Monitor</a>
+        {% endif %}
+        {% if _rol in ('admin', 'callcenter') %}
+        <a href="/admin/leads" class="nav-tab {{ 'active' if _p.startswith('/admin/leads') else '' }}"><i class="fa-solid fa-headset"></i> Leads</a>
+        <a href="/admin/citas" class="nav-tab {{ 'active' if _p.startswith('/admin/citas') else '' }}"><i class="fa-solid fa-calendar-check"></i> Citas</a>
+        {% endif %}
+        {% if _rol in ('admin', 'contabilidad') %}
+        <a href="/admin/comprobantes" class="nav-tab {{ 'active' if _p.startswith('/admin/comprobantes') else '' }}">
+            <i class="fa-solid fa-receipt"></i> Comprobantes{% if pendientes_comprobantes %} <span style="background:#ef4444;color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;font-weight:700;">{{ pendientes_comprobantes }}</span>{% endif %}
+        </a>
+        {% endif %}
+        {% if _rol == 'admin' %}
+        <a href="/admin/ia" class="nav-tab {{ 'active' if _p.startswith('/admin/ia') else '' }}"><i class="fa-solid fa-wand-magic-sparkles"></i> IA &amp; Empresas</a>
+        <a href="/admin/editor" class="nav-tab {{ 'active' if _p.startswith('/admin/editor') else '' }}"><i class="fa-solid fa-pen-to-square"></i> Editor Bot</a>
+        <a href="/admin/endpoints" class="nav-tab {{ 'active' if _p.startswith('/admin/endpoints') else '' }}"><i class="fa-solid fa-plug"></i> Endpoints</a>
+        {% if brand.require_id_validation %}
+        <a href="/admin/colaboradores" class="nav-tab {{ 'active' if _p.startswith('/admin/colaboradores') else '' }}"><i class="fa-solid fa-id-badge"></i> Base DNI</a>
+        {% endif %}
+        <a href="/admin/usuarios" class="nav-tab {{ 'active' if _p.startswith('/admin/usuarios') else '' }}"><i class="fa-solid fa-user-shield"></i> Equipo &amp; Roles</a>
+        {% endif %}
+        <span style="color:#8696a0;font-size:12.5px;margin:0 4px;display:inline-flex;align-items:center;gap:5px;">
+            <i class="fa-solid fa-circle-user" style="color:#00a884;font-size:15px;"></i>
+            <strong style="color:#e9edef;">{{ session.get('username', 'Usuario') }}</strong>
+        </span>
+        <a href="/logout" class="nav-tab logout"><i class="fa-solid fa-power-off"></i> Salir</a>
+    </nav>
+</header>

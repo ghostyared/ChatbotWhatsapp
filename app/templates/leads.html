@@ -439,35 +439,7 @@
 </head>
 <body>
 
-    <header class="top-navbar">
-        <div class="brand-logo">
-            <i class="fa-solid fa-headset"></i>
-            <span>{{ brand.bot_name }} · CRM</span>
-        </div>
-        <nav class="nav-tabs">
-            {% if session.get('user_role') == 'admin' %}
-            <a href="/dashboard" class="nav-tab"><i class="fa-solid fa-chart-line"></i> Dashboard</a>
-            {% endif %}
-            <a href="/monitor" class="nav-tab"><i class="fa-solid fa-comments"></i> Monitor en Vivo</a>
-            {% if session.get('user_role') in ('admin', 'contabilidad') %}
-            <a href="/admin/comprobantes" class="nav-tab"><i class="fa-solid fa-receipt"></i> Comprobantes</a>
-            {% endif %}
-            <a href="/admin/leads" class="nav-tab active"><i class="fa-solid fa-headset"></i> CRM / Call Center</a>
-            <a href="/admin/citas" class="nav-tab"><i class="fa-solid fa-calendar-check"></i> Citas</a>
-            {% if session.get('user_role') == 'admin' %}
-            <a href="/admin/ia" class="nav-tab"><i class="fa-solid fa-wand-magic-sparkles"></i> Asistente IA</a>
-            <a href="/admin/endpoints" class="nav-tab"><i class="fa-solid fa-plug"></i> Endpoints API</a>
-            <a href="/admin/editor" class="nav-tab"><i class="fa-solid fa-pen-to-square"></i> Editor del Bot</a>
-            <a href="/admin/colaboradores" class="nav-tab"><i class="fa-solid fa-users"></i> Colaboradores</a>
-            <a href="/admin/usuarios" class="nav-tab"><i class="fa-solid fa-user-shield"></i> Usuarios</a>
-            {% endif %}
-            <span style="color: #8696a0; font-size: 13px; margin: 0 4px; display: flex; align-items: center; gap: 6px;">
-                <i class="fa-solid fa-circle-user" style="color: #00a884; font-size: 16px;"></i>
-                <strong style="color: #e9edef;">{{ session.get('username', 'Usuario') }}</strong>
-            </span>
-            <a href="/logout" class="nav-tab logout"><i class="fa-solid fa-power-off"></i> Salir</a>
-        </nav>
-    </header>
+    {% include "_navbar.html" %}
 
     <div class="main-container">
         {% with mensajes = get_flashed_messages(with_categories=true) %}
