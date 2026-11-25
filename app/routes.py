@@ -747,8 +747,16 @@ def toggle_bot(tel):
     if not usu:
         return jsonify({"error": "Usuario no encontrado"}), 404
     usu.bot_pausado = not bool(usu.bot_pausado)
+    if usu.bot_pausado:
+        usu.estado_chat = 'atendido'
+        usu.asignado_a = usu.asignado_a or g.user.username
+    else:
+        usu.estado_chat = 'bot'
+        usu.esperando_asesor_desde = None
+        usu.esperando_usuario_desde = None
+        usu.aviso_inactividad_enviado = False
     db.session.commit()
-    return jsonify({"status": "success", "bot_pausado": usu.bot_pausado})
+    return jsonify({"status": "success", "bot_pausado": usu.bot_pausado, "estado_chat": usu.estado_chat})
 
 
 @main.route('/api/toggle_online', methods=['POST'])
