@@ -4,7 +4,9 @@ from app.models import Cita, Empresa, Lead, MaterialComercial, PreguntaPendiente
 from tests.conftest import csrf_de, login
 
 
-def test_simulacion_crm_completa_end_to_end(app, client, sent):
+def test_simulacion_crm_completa_end_to_end(app, client, sent, monkeypatch):
+    from app import limiter
+    monkeypatch.setattr(limiter, "enabled", False)
     with app.app_context():
         manage.seed_demo_crm()
         assert Empresa.query.count() >= 3
