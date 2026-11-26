@@ -146,16 +146,13 @@ def _transcribir_y_guardar_audio(tel, nombre_wa, media):
     if not media_id:
         log.warning("Audio sin media_id para %s", tel)
         return ""
-    if not Config.GEMINI_API_KEY and not Config.GROQ_API_KEY:
-        log.warning("Audio recibido de %s pero GEMINI_API_KEY y GROQ_API_KEY están vacías en .env", tel)
-        return ""
     try:
         audio_bytes, mime = descargar_media(media_id, max_bytes=5 * 1024 * 1024)
         texto = ia_gemini.transcribir_audio(audio_bytes, mime or (media or {}).get('mime') or 'audio/ogg')
         if texto:
             registrar_msg(tel, nombre_wa, f"🎙️ [Audio transcrito]: {texto}", 'ENTRADA', media_tipo='audio')
         else:
-            log.warning("Gemini devolvió transcripción vacía para audio de %s (modelo=%s)", tel, Config.GEMINI_MODEL)
+            log.warning("Transcripción vacía para audio de %s (GEMINI=%s, GROQ=%s)", tel, bool(Config.GEMINI_API_KEY), bool(Config.GROQ_API_KEY))
         return texto
     except MediaError as e:
         log.warning("Error descargando audio de Meta para %s: %s", tel, e)

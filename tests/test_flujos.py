@@ -55,12 +55,12 @@ def todo_el_texto(sent):
 def test_menu_vacantes_colegio_e_instituto(chat):
     assert ids_de(chat.texto("hola")) == ["m_gest", "m_segu", "m_bene"]
     assert ids_de(chat.boton("m_gest")) == ["v_colegio", "v_instituto", "f_matricula"]
-    assert ids_de(chat.boton("v_colegio")) == ["v_col_sede1", "v_col_sede2", "m_gest"]
-    r = chat.boton("v_col_sede1")
-    assert "Sede 1" in texto_de(r) and "v_colegio" in ids_de(r)
-    assert ids_de(chat.boton("v_instituto")) == ["v_inst_inicial", "v_inst_fisica", "v_inst_primaria"]
+    assert ids_de(chat.boton("v_colegio")) == ["v_col_comas", "v_col_ventanilla", "m_gest"]
+    r = chat.boton("v_col_comas")
+    assert "Comas" in texto_de(r) and "v_comas_inicial" in ids_de(r)
+    assert ids_de(chat.boton("v_instituto")) == ["v_inst_inicial", "v_inst_primaria", "v_inst_fisica"]
     assert "Educación Física" in texto_de(chat.boton("v_inst_fisica"))
-    assert ids_de(chat.boton("m_segu")) == ["acc_alumno", "comp_enviar", "ir_inicio"]
+    assert ids_de(chat.boton("m_segu")) == ["acc_alumno", "comp_enviar", "CMD_MAIN_MENU"]
 
 
 # ----------------------------------------------------------------- consulta de pagos

@@ -599,7 +599,7 @@ class RespuestaBot(db.Model):
              '🏃 *Carrera: Educación Física*\n\n📅 Inicio: *Cada semestre (Marzo / Agosto)* · 🔥 *Vacantes limitadas*\n⏱️ Duración: 10 ciclos (5 años) · Prácticas deportivas desde el 1er ciclo\n💰 Matrícula semestral: *S/ 250*\n💳 Pensión mensual (5 cuotas por ciclo): *S/ 490*\n📋 Requisitos: DNI vigente, certificado de secundaria y evaluación física básica.', '', pie('v_instituto')),
 
             ('f_matricula', '📝 Proceso de Matrícula',
-             '📝 *Proceso de Matrícula y Requisitos*\n\n1️⃣ Elige sede/nivel o carrera.\n2️⃣ Presenta copia de DNI (alumno y apoderado) y libreta/certificado de estudios.\n3️⃣ Realiza el pago de matrícula y envía tu comprobante por este mismo WhatsApp.\n\n🔥 *Vacantes limitadas.* ¿Deseas agendar una cita o llamada?', '', pie('m_gest')),
+             '📝 *Proceso de matrícula y requisitos*\n\n1️⃣ Elige sede/nivel o carrera.\n2️⃣ Presenta copia de DNI (alumno y apoderado) y libreta/certificado de estudios.\n3️⃣ Realiza el pago de matrícula y envía tu comprobante por este mismo WhatsApp.\n\n🔥 *Vacantes limitadas.* ¿Deseas agendar una cita o llamada?', '', pie('m_gest')),
 
             # --- Rama 2: Soy Estudiante ---
             ('m_segu', '🎓 Servicios para Estudiantes',
