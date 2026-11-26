@@ -103,7 +103,7 @@ def iniciar(ctx):
             ctx.tel,
             f"🕒 *Atención fuera de horario*\n\n"
             f"Nuestro horario de asesores es de *{Config.ATENCION_HORA_INICIO:02d}:00 a {Config.ATENCION_HORA_FIN:02d}:00*.\n"
-            f"Déjanos agendada tu llamada y te contactamos en el horario que prefieras. ¿En qué franja te llamamos?",
+            f"Agendemos tu llamada o visita en 2 pasos rápidos. ¿En qué franja horaria te conviene?",
             [
                 ("ase_franja:Mañana (9am - 12pm)", "🌅 Mañana (9-12)"),
                 ("ase_franja:Tarde (2pm - 6pm)", "🌆 Tarde (2-6)"),
@@ -115,15 +115,88 @@ def iniciar(ctx):
     estado.iniciar(ctx.tel, "asesor", "sede", {"fuera_horario": False})
     enviar_botones(
         ctx.tel,
-        "📞 *Atención con un asesor*\n\nCon gusto te comunicamos con nuestro equipo para llamarte o atenderte por este chat.\n"
-        "¿Sobre cuál institución deseas información?",
-        [("ase_sede:Colegio", "🏫 Colegio"), ("ase_sede:Instituto Pedagógico", "🎓 Instituto"), ("ase_sede:Alumno / Pagos", "💳 Soy alumno")],
+        "📅 *Atención con Asesor / Agendar Cita*\n\n"
+        "Con gusto te ayudamos. Paso 1 de 4: ¿sobre qué institución deseas información?",
+        [
+            ("ase_sede:Colegio Comas", "🏫 Colegio Comas"),
+            ("ase_sede:Colegio Ventanilla", "🏫 Col. Ventanilla"),
+            ("ase_sede:Instituto Pedagógico", "🎓 Instituto"),
+        ],
     )
 
 
 def continuar(ctx, st):
     d = estado.datos(st)
     paso = st.paso
+
+    if paso == "sede":
+        if ctx.btn_id.startswith("ase_sede:"):
+            sede = ctx.btn_id.split(":", 1)[1]
+        elif ctx.tipo == "text" and ctx.txt.strip():
+            sede = ctx.txt.strip()[:80]
+        else:
+            enviar_texto(ctx.tel, "Elige *Colegio Comas*, *Colegio Ventanilla* o *Instituto* (o escribe *cancelar*).")
+            return True
+        estado.avanzar(st, "tipo_cita", sede=sede)
+        enviar_botones(
+            ctx.tel,
+            f"Perfecto (*{sede}*). Paso 2 de 4: ¿cómo prefieres que te atendamos?",
+            [
+                ("ase_tipo:Llamada telefónica", "📞 Que me llamen"),
+                ("ase_tipo:Visita guiada", "🏫 Visita guiada"),
+                ("ase_tipo:Chat ahora", "💬 Chat ahora"),
+            ],
+        )
+        return True
+
+    if paso == "tipo_cita":
+        if ctx.btn_id.startswith("ase_tipo:"):
+            tipo_cita = ctx.btn_id.split(":", 1)[1]
+        elif ctx.tipo == "text" and ctx.txt.strip():
+            tipo_cita = ctx.txt.strip()[:60]
+        else:
+            enviar_texto(ctx.tel, "Elige una modalidad: *Que me llamen*, *Visita guiada* o *Chat ahora*.")
+            return True
+
+        if tipo_cita == "Chat ahora":
+            estado.avanzar(st, "datos", tipo_cita=tipo_cita, franja="")
+            enviar_texto(
+                ctx.tel,
+                "¡Genial! Escribe tu *nombre completo* y tu consulta breve para conectarte ahora mismo con un asesor.",
+            )
+            return True
+
+        estado.avanzar(st, "dia", tipo_cita=tipo_cita)
+        enviar_botones(
+            ctx.tel,
+            f"Excelente (*{tipo_cita}*). Paso 3 de 4: ¿para qué día prefieres agendar?",
+            [
+                ("ase_dia:Hoy / Mañana", "📅 Hoy / Mañana"),
+                ("ase_dia:Esta semana", "📆 Esta semana"),
+                ("ase_dia:Sábado", "🗓️ Sábado"),
+            ],
+        )
+        return True
+
+    if paso == "dia":
+        if ctx.btn_id.startswith("ase_dia:"):
+            dia = ctx.btn_id.split(":", 1)[1]
+        elif ctx.tipo == "text" and ctx.txt.strip():
+            dia = ctx.txt.strip()[:60]
+        else:
+            enviar_texto(ctx.tel, "Indícanos qué día prefieres (ej. *Mañana*, *Jueves* o *Sábado*).")
+            return True
+        estado.avanzar(st, "franja", dia=dia)
+        enviar_botones(
+            ctx.tel,
+            f"Anotado (*{dia}*). Paso 4 de 4: ¿en qué horario prefieres?",
+            [
+                ("ase_franja:Mañana (9am - 12pm)", "🌅 Mañana (9-12)"),
+                ("ase_franja:Tarde (2pm - 6pm)", "🌆 Tarde (2-6)"),
+                ("ase_franja:Otro horario", "🕒 Otro horario"),
+            ],
+        )
+        return True
 
     if paso == "franja":
         if ctx.btn_id.startswith("ase_franja:"):
@@ -136,22 +209,7 @@ def continuar(ctx, st):
         estado.avanzar(st, "datos", franja=franja, sede=d.get("sede") or "Cita programada")
         enviar_texto(
             ctx.tel,
-            f"Anotado (*{franja}*). Escribe tu *nombre completo*, la *institución/carrera de interés* y el motivo de tu consulta para agendar tu llamada.",
-        )
-        return True
-
-    if paso == "sede":
-        if ctx.btn_id.startswith("ase_sede:"):
-            sede = ctx.btn_id.split(":", 1)[1]
-        elif ctx.tipo == "text" and ctx.txt.strip():
-            sede = ctx.txt.strip()[:80]
-        else:
-            enviar_texto(ctx.tel, "Indícame si tu consulta es sobre *Colegio*, *Instituto* o *Soy alumno* (o escribe *cancelar*).")
-            return True
-        estado.avanzar(st, "datos", sede=sede)
-        enviar_texto(
-            ctx.tel,
-            f"Perfecto (*{sede}*). Escribe tu *nombre completo* y, si deseas que te llamemos, indícanos el *horario preferido* (o si prefieres otro número de celular).",
+            f"¡Listo (*{franja}*)! Por último, escribe tu *nombre completo* (y si deseas, el nivel/carrera o motivo de tu consulta) para confirmar tu cita.",
         )
         return True
 
@@ -162,7 +220,10 @@ def continuar(ctx, st):
         detalle = ctx.txt.strip()[:400]
         nombre_lead = detalle.splitlines()[0][:120]
         sede = d.get("sede") or "General"
+        tipo_cita = d.get("tipo_cita") or "Llamada"
+        dia = d.get("dia") or "Próximo día hábil"
         franja = d.get("franja") or ""
+        franja_completa = f"{dia} · {franja}".strip(" ·") if franja else ""
         fuera_horario = bool(d.get("fuera_horario"))
 
         lead = Lead.query.filter_by(telefono=ctx.tel).filter(
@@ -171,11 +232,11 @@ def continuar(ctx, st):
         lead.nombre = nombre_lead if len(nombre_lead) <= 60 else (ctx.nombre or nombre_lead[:60])
         lead.sede_nombre = sede[:120]
         lead.comentario = detalle
-        if franja:
-            lead.visita_pref = franja[:120]
+        if franja_completa:
+            lead.visita_pref = franja_completa[:120]
         lead.resumen_ia = (
-            f"Cita/llamada programada ({franja}) para {sede}: {detalle}"
-            if franja else f"Solicitó asesor/llamada para {sede}: {detalle}"
+            f"{tipo_cita} agendada ({franja_completa}) · {sede}: {detalle}"
+            if franja_completa else f"Solicitó asesor en vivo · {sede}: {detalle}"
         )
         lead.quiere_asesor = True
         lead.prioridad = "alta"
@@ -185,8 +246,8 @@ def continuar(ctx, st):
             auto_asesor = asignar_asesor_round_robin(lead.empresa_id)
             if auto_asesor:
                 lead.asignado_a = auto_asesor
-        lead.resultado_llamada = "cita_agendada" if franja else "pendiente"
-        lead.estado = "visita" if franja else (lead.estado or "nuevo")
+        lead.resultado_llamada = "cita_agendada" if franja_completa else "pendiente"
+        lead.estado = "visita" if franja_completa else (lead.estado or "nuevo")
         db.session.add(lead)
         db.session.commit()
         if lead.asignado_a:
@@ -194,42 +255,48 @@ def continuar(ctx, st):
             db.session.add(LeadEvento(lead_id=lead.id, tipo='asignacion', detalle=f'Auto-asignado (Round-Robin) a {lead.asignado_a}', usuario='sistema'))
             db.session.commit()
 
-        if franja:
-            cita = Cita(
+        cita_creada = None
+        if franja_completa:
+            cita_creada = Cita(
                 lead_id=lead.id,
                 empresa_id=lead.empresa_id,
                 telefono=ctx.tel,
                 nombre=lead.nombre or ctx.nombre or "",
-                fecha_preferida="Próximo día hábil",
+                fecha_preferida=dia[:60],
                 franja=franja[:80],
-                motivo=detalle[:500],
+                motivo=f"[{tipo_cita} · {sede}] {detalle}"[:500],
                 asignado_a=lead.asignado_a,
                 estado="pendiente",
             )
-            db.session.add(cita)
+            db.session.add(cita_creada)
             db.session.commit()
             ep_cita = ep_cli.obtener_endpoint("agendar_cita", solo_activo=True)
             if ep_cita:
                 ep_cli.ejecutar(ep_cita, {
                     "lead_id": lead.id,
                     "empresa_id": lead.empresa_id or 0,
-                    "franja": franja,
+                    "franja": franja_completa,
                     "motivo": detalle[:300],
                 })
 
         lead.asesor_avisado = notificar_callcenter(lead)
-        if not fuera_horario:
+        if not fuera_horario and not franja_completa:
             ctx.usu.bot_pausado = True
             ctx.usu.estado_chat = "en_cola"
             ctx.usu.esperando_asesor_desde = utcnow()
         db.session.commit()
         estado.terminar(ctx.tel)
 
-        if franja:
+        if franja_completa:
+            cod = f"#C-{cita_creada.id:04d}" if cita_creada else f"#{lead.id}"
             enviar_botones(
                 ctx.tel,
-                f"📅 ¡Listo! Agendamos tu llamada (*#{lead.id}*) para *{franja}*.\n\n"
-                f"Un asesor revisará tu consulta y te contactará en ese horario. ¡Gracias!",
+                f"📅 *¡Cita confirmada ({cod})!*\n\n"
+                f"🏫 *Institución:* {sede}\n"
+                f"📌 *Modalidad:* {tipo_cita}\n"
+                f"🕒 *Horario:* {franja_completa}\n"
+                f"👤 *Contacto:* {lead.nombre}\n\n"
+                "Agendamos tu llamada/cita y un asesor se comunicará contigo en ese horario. ¡Gracias!",
                 [("CMD_MAIN_MENU", "🏠 Menú Principal")],
             )
         else:

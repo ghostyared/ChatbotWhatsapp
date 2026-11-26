@@ -546,55 +546,82 @@ class RespuestaBot(db.Model):
         def b(*items):
             return json.dumps([{"id": i, "title": t} for i, t in items], ensure_ascii=False)
 
-        pie = lambda back: b((back, "⬅️ Volver"), ("f_asesor", "🙋 Hablar con asesor"), ("ir_inicio", "🏠 Inicio"))
-        pendiente = "\n\n✏️ _Edita este texto desde el panel (Editor del Bot)._"
+        pie = lambda back: b((back, "⬅️ Volver"), ("acc_asesor", "📅 Agendar cita"), ("CMD_MAIN_MENU", "🏠 Menú Principal"))
         datos = [
             # clave, título, texto, link, botones
             ('bienvenida', '👋 Bienvenida (tras validar ID)',
              '¡Hola *{nombre}*! ✨\n\nGracias, ya validé tus datos en *{empresa}* 🙌\n\n¿En qué puedo ayudarte hoy?',
-             '', b(('m_gest', '📚 Vacantes'), ('m_segu', '🎓 Soy alumno'), ('m_bene', '📍 Contacto'))),
+             '', b(('m_gest', '📚 Informes'), ('m_segu', '🎓 Soy estudiante'), ('m_bene', '📍 Contáctanos'))),
             ('inicio', '🏠 Menú principal',
-             f'¡Hola *{{nombre}}*! ✨\n\nSoy *{bot}*, el asistente virtual de *{empresa}*.\n\n¿En qué puedo ayudarte hoy?',
-             '', b(('m_gest', '📚 Vacantes'), ('m_segu', '🎓 Soy alumno'), ('m_bene', '📍 Contacto'))),
+             f'¡Hola *{{nombre}}*! ✨\n\nSoy *{bot}*, tu asistente virtual de *{empresa}*.\n\nElige una opción o escríbeme tu consulta directamente:',
+             '', b(('m_gest', '📚 Informes'), ('m_segu', '🎓 Soy estudiante'), ('m_bene', '📍 Contáctanos'))),
 
-            # --- Rama 1: Vacantes e informes ---
-            ('m_gest', '📚 Vacantes e informes',
-             '📚 *Vacantes e informes*\n\nContamos con *2 sedes de Colegio* y nuestro *Instituto Pedagógico* (inicio cada semestre).\n¿Qué te interesa?', '',
+            # --- Rama 1: Informes (2 Colegios: Comas y Ventanilla + Instituto Pedagógico) ---
+            ('m_gest', '📚 Informes y Vacantes',
+             '📚 *Informes y Vacantes 2026*\n\nContamos con *2 sedes de Colegio* (*Comas* y *Ventanilla*) y nuestro *Instituto Pedagógico* (inicio cada semestre · vacantes limitadas).\n\n¿Sobre cuál deseas información?', '',
              b(('v_colegio', '🏫 Colegios (2 sedes)'), ('v_instituto', '🎓 Instituto'), ('f_matricula', '📝 Matrícula'))),
-            ('v_colegio', '🏫 Colegios (2 sedes)',
-             '🏫 *Nuestros 2 Colegios*\n\nCada sede cuenta con su propio distrito, pensión mensual y propuesta educativa. ¿Cuál deseas conocer?', '',
-             b(('v_col_sede1', '🏫 Colegio Sede 1'), ('v_col_sede2', '🏫 Colegio Sede 2'), ('m_gest', '⬅️ Volver'))),
-            ('v_col_sede1', 'Colegio · Sede 1',
-             '🏫 *Colegio — Sede 1*\n\n📍 Distrito: (editar)\n💰 Pensión mensual: (editar)\n✨ Propuesta educativa: (editar)\n📚 Niveles: Inicial, Primaria y Secundaria.' + pendiente, '', pie('v_colegio')),
-            ('v_col_sede2', 'Colegio · Sede 2',
-             '🏫 *Colegio — Sede 2*\n\n📍 Distrito: (editar)\n💰 Pensión mensual: (editar)\n✨ Propuesta educativa: (editar)\n📚 Niveles: Inicial, Primaria y Secundaria.' + pendiente, '', pie('v_colegio')),
-            ('v_inicial', 'Colegio · Inicial', '🧸 *Nivel Inicial*\n\nEdades, horarios, requisitos y vacantes disponibles.' + pendiente, '', pie('v_colegio')),
-            ('v_primaria', 'Colegio · Primaria', '📘 *Nivel Primaria*\n\nGrados, horarios, requisitos y vacantes disponibles.' + pendiente, '', pie('v_colegio')),
-            ('v_secundaria', 'Colegio · Secundaria', '📗 *Nivel Secundaria*\n\nGrados, horarios, requisitos y vacantes disponibles.' + pendiente, '', pie('v_colegio')),
-            ('v_instituto', '🎓 Instituto Pedagógico',
-             '🎓 *Instituto Pedagógico*\n\n📅 Inicio de clases *cada semestre*.\nContamos con 3 carreras profesionales. ¿Cuál te interesa?', '',
-             b(('v_inst_inicial', 'Educ. Inicial'), ('v_inst_fisica', 'Educ. Física'), ('v_inst_primaria', 'Educ. Primaria'))),
-            ('v_inst_inicial', 'Instituto · Educación Inicial', '🧸 *Educación Inicial*\n\n📅 Inicio cada semestre.\nDuración, malla, requisitos de admisión e inversión.' + pendiente, '', pie('v_instituto')),
-            ('v_inst_primaria', 'Instituto · Educación Primaria', '📘 *Educación Primaria*\n\n📅 Inicio cada semestre.\nDuración, malla, requisitos de admisión e inversión.' + pendiente, '', pie('v_instituto')),
-            ('v_inst_fisica', 'Instituto · Educación Física', '🏃 *Educación Física*\n\n📅 Inicio cada semestre.\nDuración, malla, requisitos de admisión e inversión.' + pendiente, '', pie('v_instituto')),
-            ('f_matricula', 'Proceso de matrícula', '📝 *Proceso de matrícula*\n\nPasos, fechas y documentos necesarios.' + pendiente, '', pie('m_gest')),
 
-            # --- Rama 2: Alumnos (acciones guiadas; el texto es la introducción que ve el usuario) ---
-            ('m_segu', '🎓 Servicios para alumnos', '🎓 *Servicios para alumnos*\n\nElige una opción:', '',
-             b(('acc_alumno', '🔍 Consultar con DNI'), ('comp_enviar', '📤 Enviar comprobante'), ('ir_inicio', '🏠 Inicio'))),
+            ('v_colegio', '🏫 Colegios (Comas y Ventanilla)',
+             '🏫 *Nuestros Colegios*\n\nCada sede cuenta con infraestructura propia, talleres y pensiones diferenciadas por nivel.\n¿Qué sede deseas consultar?', '',
+             b(('v_col_comas', '🏫 Sede Comas'), ('v_col_ventanilla', '🏫 Sede Ventanilla'), ('m_gest', '⬅️ Volver'))),
+
+            # --- Colegio Sede Comas ---
+            ('v_col_comas', '🏫 Colegio · Sede Comas',
+             '🏫 *Colegio — Sede Comas*\n\n📍 Av. Universitaria Norte 1450, Comas\n✨ Inglés intensivo, robótica, laboratorio de ciencias y talleres deportivos.\n🔥 *Vacantes limitadas 2026*\n\nElige el nivel para ver precios y horarios:', '',
+             b(('v_comas_inicial', '🧸 Inicial Comas'), ('v_comas_primaria', '📘 Primaria Comas'), ('v_comas_secundaria', '📗 Secundaria Comas'))),
+            ('v_comas_inicial', 'Comas · Nivel Inicial',
+             '🧸 *Colegio Comas — Nivel Inicial (3, 4 y 5 años)*\n\n💰 Matrícula: *S/ 420*\n💳 Pensión mensual (10 cuotas): *S/ 420*\n🕒 Horario: 08:15 a 13:15\n🎨 Talleres incluidos: Psicomotricidad, Música e Inglés lúdico.\n🔥 *Vacantes limitadas.*', '', pie('v_col_comas')),
+            ('v_comas_primaria', 'Comas · Nivel Primaria',
+             '📘 *Colegio Comas — Nivel Primaria (1° a 6° grado)*\n\n💰 Matrícula: *S/ 480*\n💳 Pensión mensual (10 cuotas): *S/ 480*\n🕒 Horario: 07:45 a 14:15\n🤖 Talleres incluidos: Robótica, Inglés intensivo, Ajedrez y Deportes.\n🔥 *Vacantes limitadas.*', '', pie('v_col_comas')),
+            ('v_comas_secundaria', 'Comas · Nivel Secundaria',
+             '📗 *Colegio Comas — Nivel Secundaria (1° a 5° año)*\n\n💰 Matrícula: *S/ 530*\n💳 Pensión mensual (10 cuotas): *S/ 530*\n🕒 Horario: 07:45 a 14:45\n🎯 Preparación preuniversitaria, Inglés certificable y Computación.\n🔥 *Vacantes limitadas.*', '', pie('v_col_comas')),
+
+            # --- Colegio Sede Ventanilla ---
+            ('v_col_ventanilla', '🏫 Colegio · Sede Ventanilla',
+             '🏫 *Colegio — Sede Ventanilla*\n\n📍 Av. Néstor Gambetta Km 14.5, Ventanilla\n✨ Campus amplio, laboratorios modernos, inglés diario y escuela para padres.\n🔥 *Vacantes limitadas 2026*\n\nElige el nivel para ver precios y horarios:', '',
+             b(('v_vent_inicial', '🧸 Inicial Vent.'), ('v_vent_primaria', '📘 Primaria Vent.'), ('v_vent_secundaria', '📗 Secund. Vent.'))),
+            ('v_vent_inicial', 'Ventanilla · Nivel Inicial',
+             '🧸 *Colegio Ventanilla — Nivel Inicial (3, 4 y 5 años)*\n\n💰 Matrícula: *S/ 380*\n💳 Pensión mensual (10 cuotas): *S/ 380*\n🕒 Horario: 08:15 a 13:15\n🎨 Estimulación temprana, Inglés y Arte.\n🔥 *Vacantes limitadas.*', '', pie('v_col_ventanilla')),
+            ('v_vent_primaria', 'Ventanilla · Nivel Primaria',
+             '📘 *Colegio Ventanilla — Nivel Primaria (1° a 6° grado)*\n\n💰 Matrícula: *S/ 430*\n💳 Pensión mensual (10 cuotas): *S/ 430*\n🕒 Horario: 07:45 a 14:15\n🤖 Robótica, Inglés, Danza y Deportes.\n🔥 *Vacantes limitadas.*', '', pie('v_col_ventanilla')),
+            ('v_vent_secundaria', 'Ventanilla · Nivel Secundaria',
+             '📗 *Colegio Ventanilla — Nivel Secundaria (1° a 5° año)*\n\n💰 Matrícula: *S/ 470*\n💳 Pensión mensual (10 cuotas): *S/ 470*\n🕒 Horario: 07:45 a 14:45\n🎯 Orientación vocacional, Pre-U y Laboratorios.\n🔥 *Vacantes limitadas.*', '', pie('v_col_ventanilla')),
+
+            # --- Instituto Pedagógico (3 carreras, inicio cada semestre, vacantes limitadas) ---
+            ('v_instituto', '🎓 Instituto Pedagógico',
+             '🎓 *Instituto Pedagógico*\n\n📅 *Inicio de clases: cada semestre (Marzo y Agosto)*\n🔥 *¡Vacantes limitadas por carrera!*\n🏅 Título profesional a nombre de la Nación (5 años / 10 ciclos).\n\nElige la carrera de tu interés:', '',
+             b(('v_inst_inicial', '🧸 Educ. Inicial'), ('v_inst_primaria', '📘 Educ. Primaria'), ('v_inst_fisica', '🏃 Educ. Física'))),
+            ('v_inst_inicial', 'Instituto · Educación Inicial',
+             '🧸 *Carrera: Educación Inicial*\n\n📅 Inicio: *Cada semestre (Marzo / Agosto)* · 🔥 *Vacantes limitadas*\n⏱️ Duración: 10 ciclos (5 años) · Turnos Mañana y Tarde\n💰 Matrícula semestral: *S/ 250*\n💳 Pensión mensual (5 cuotas por ciclo): *S/ 460*\n📋 Requisitos: DNI vigente y certificado de secundaria completa.', '', pie('v_instituto')),
+            ('v_inst_primaria', 'Instituto · Educación Primaria',
+             '📘 *Carrera: Educación Primaria*\n\n📅 Inicio: *Cada semestre (Marzo / Agosto)* · 🔥 *Vacantes limitadas*\n⏱️ Duración: 10 ciclos (5 años) · Turnos Mañana y Tarde\n💰 Matrícula semestral: *S/ 250*\n💳 Pensión mensual (5 cuotas por ciclo): *S/ 460*\n📋 Requisitos: DNI vigente y certificado de secundaria completa.', '', pie('v_instituto')),
+            ('v_inst_fisica', 'Instituto · Educación Física',
+             '🏃 *Carrera: Educación Física*\n\n📅 Inicio: *Cada semestre (Marzo / Agosto)* · 🔥 *Vacantes limitadas*\n⏱️ Duración: 10 ciclos (5 años) · Prácticas deportivas desde el 1er ciclo\n💰 Matrícula semestral: *S/ 250*\n💳 Pensión mensual (5 cuotas por ciclo): *S/ 490*\n📋 Requisitos: DNI vigente, certificado de secundaria y evaluación física básica.', '', pie('v_instituto')),
+
+            ('f_matricula', '📝 Proceso de Matrícula',
+             '📝 *Proceso de Matrícula y Requisitos*\n\n1️⃣ Elige sede/nivel o carrera.\n2️⃣ Presenta copia de DNI (alumno y apoderado) y libreta/certificado de estudios.\n3️⃣ Realiza el pago de matrícula y envía tu comprobante por este mismo WhatsApp.\n\n🔥 *Vacantes limitadas.* ¿Deseas agendar una cita o llamada?', '', pie('m_gest')),
+
+            # --- Rama 2: Soy Estudiante ---
+            ('m_segu', '🎓 Servicios para Estudiantes',
+             '🎓 *Portal del Estudiante*\n\nConsulta tus *Notas*, *Cuotas de pago*, *Comunicados* o envía tu *Comprobante de pago*:', '',
+             b(('acc_alumno', '🔍 Consultar con DNI'), ('comp_enviar', '📤 Enviar comprobante'), ('CMD_MAIN_MENU', '🏠 Menú Principal'))),
             ('acc_alumno', '🎓 Portal del Alumno (DNI)',
              '🎓 *Portal del Alumno*\n\nEscribe tu número de *DNI* (solo números) para ver tus periodos matriculados y consultar *Notas*, *Cuotas de pago* o *Comunicados*.', '', None),
             ('acc_deudas', '💳 Consulta de pagos', '💳 *Consulta de pagos*\n\nTe haré unas preguntas rápidas. Escribe *cancelar* en cualquier momento para salir.', '', None),
             ('acc_notas', '📝 Consulta de notas', '📝 *Consulta de notas*\n\nTe haré unas preguntas rápidas. Escribe *cancelar* en cualquier momento para salir.', '', None),
             ('comp_enviar', '📤 Envío de comprobante', '📤 *Envío de comprobante de pago*\n\nEl área contable lo revisará y te avisaremos por este chat.', '', None),
 
-            # --- Rama 3: Contacto ---
-            ('m_bene', '📍 Contacto', '📍 *Contacto*\n\nSelecciona una opción:', '',
-             b(('f_horarios', '🕒 Horarios'), ('f_ubicacion', '📍 Ubicación'), ('f_asesor', '🙋 Asesor'))),
-            ('f_horarios', 'Horarios de atención', '🕒 *Horarios de atención*\n\nLunes a viernes, de 8:00 a 17:00.' + pendiente, '', pie('m_bene')),
-            ('f_ubicacion', 'Ubicación', '📍 *Ubicación*\n\nDirección y referencias.' + pendiente, '', pie('m_bene')),
-            ('f_asesor', 'Hablar con un asesor', f'🙋 *Hablar con un asesor*\n\nEscríbenos a contacto@ejemplo.com o llámanos al (01) 000-0000.\n\n— Equipo {empresa}' + pendiente, '',
-             b(('ir_inicio', '🏠 Inicio'))),
+            # --- Rama 3: Contáctanos y Citas ---
+            ('m_bene', '📍 Contáctanos',
+             '📍 *Contáctanos*\n\n¿Qué información necesitas o prefieres agendar una cita/llamada?', '',
+             b(('f_horarios', '🕒 Horarios'), ('f_ubicacion', '📍 Ubicaciones'), ('acc_asesor', '📅 Cita / Asesor'))),
+            ('f_horarios', '🕒 Horarios de atención',
+             '🕒 *Horarios de Atención*\n\n• *Lunes a Viernes:* 08:00 a 18:00\n• *Sábados:* 09:00 a 13:00\n\nSi nos escribes fuera de horario, puedes dejar tu *cita o llamada programada* y te contactamos al día siguiente.', '', pie('m_bene')),
+            ('f_ubicacion', '📍 Ubicaciones de Sedes',
+             '📍 *Nuestras Sedes*\n\n🏫 *Colegio Comas:* Av. Universitaria Norte 1450, Comas.\n🏫 *Colegio Ventanilla:* Av. Néstor Gambetta Km 14.5, Ventanilla.\n🎓 *Instituto Pedagógico:* Sede Central Lima Norte.\n\n¿Deseas agendar una visita guiada?', '', pie('m_bene')),
+            ('f_asesor', '🙋 Hablar con un asesor',
+             f'🙋 *Atención Personalizada*\n\nPulsa *Agendar cita* para coordinar una llamada, visita guiada o hablar con un asesor de *{empresa}*.', '',
+             b(('acc_asesor', '📅 Agendar cita'), ('CMD_MAIN_MENU', '🏠 Menú Principal'))),
         ]
         for clave, titulo, texto, link, botones in datos:
             if not RespuestaBot.query.filter_by(clave=clave).first():

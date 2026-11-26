@@ -138,20 +138,30 @@ def _palabras(txt_norm):
 
 def _transcribir_y_guardar_audio(tel, nombre_wa, media):
     """Descarga una nota de voz de Meta, la transcribe con Gemini y registra el texto en el historial."""
+    import logging
     from .services import descargar_media, registrar_msg, MediaError
     from . import ia_gemini
+    log = logging.getLogger(__name__)
     media_id = (media or {}).get('id')
     if not media_id:
+        log.warning("Audio sin media_id para %s", tel)
+        return ""
+    if not Config.GEMINI_API_KEY:
+        log.warning("Audio recibido de %s pero GEMINI_API_KEY está vacía en .env", tel)
         return ""
     try:
         audio_bytes, mime = descargar_media(media_id, max_bytes=5 * 1024 * 1024)
         texto = ia_gemini.transcribir_audio(audio_bytes, mime or (media or {}).get('mime') or 'audio/ogg')
         if texto:
             registrar_msg(tel, nombre_wa, f"🎙️ [Audio transcrito]: {texto}", 'ENTRADA', media_tipo='audio')
+        else:
+            log.warning("Gemini devolvió transcripción vacía para audio de %s (modelo=%s)", tel, Config.GEMINI_MODEL)
         return texto
-    except MediaError:
+    except MediaError as e:
+        log.warning("Error descargando audio de Meta para %s: %s", tel, e)
         return ""
     except Exception:
+        log.exception("Error inesperado transcribiendo audio para %s", tel)
         return ""
 
 
