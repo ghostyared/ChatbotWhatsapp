@@ -216,7 +216,7 @@ def _paso_dni(ctx, st):
         logger.error("Error consultando periodos_estudiante: %s", res.get("error"))
         _auditar(ctx, "alumno", dni, "", "", "error")
         enviar_botones(ctx.tel, "😕 El servicio de consulta no está disponible en este momento. Inténtalo más tarde.",
-                       [("acc_alumno", "🔁 Reintentar"), ("f_asesor", "🙋 Hablar con asesor"), ("ir_inicio", "🏠 Inicio")])
+                       [("acc_alumno", "🔁 Reintentar"), ("acc_asesor", "🙋 Hablar con asesor"), ("CMD_MAIN_MENU", "🏠 Menú Principal")])
         estado.terminar(ctx.tel)
         return True
 

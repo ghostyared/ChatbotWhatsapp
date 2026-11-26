@@ -17,7 +17,7 @@ from werkzeug.security import check_password_hash
 from config import Config
 from . import csrf, endpoints_client as ep_cli, limiter
 from .bot_logic import brain_gethi
-from .models import (Ajuste, ApiEndpoint, Cita, Colaborador, Comprobante, Empresa, IaUso, Lead, LeadEvento,
+from .models import (Ajuste, ApiEndpoint, AuditoriaAdmin, Cita, Colaborador, Comprobante, Empresa, IaUso, Lead, LeadEvento,
                      MaterialComercial, Mensaje, PlantillaRapida, PreguntaPendiente, ReglaCampana, RespuestaBot,
                      Usuario, UsuarioSistema, db, utcnow)
 from .services import (enviar_documento, enviar_imagen, enviar_plantilla, enviar_texto, enviar_video,
@@ -204,12 +204,13 @@ def _sin_sesion():
     return redirect(url_for('main.login'))
 
 
-ROLES = ('admin', 'callcenter', 'lector', 'contabilidad')
+ROLES = ('admin', 'supervisor', 'callcenter', 'lector', 'contabilidad')
 
 
 def _home_para(rol):
     return {
         'admin': 'main.dashboard',
+        'supervisor': 'main.leads',
         'callcenter': 'main.leads',
         'contabilidad': 'main.comprobantes',
     }.get(rol, 'main.monitor')
@@ -236,8 +237,9 @@ def roles_required(*roles):
 
 login_required = roles_required()                                    # cualquier usuario autenticado
 admin_required = roles_required('admin')
-agente_required = roles_required('admin', 'callcenter')              # atender leads, responder chats y pausar bot
-monitor_required = roles_required('admin', 'callcenter', 'lector')   # ver conversaciones
+supervisor_required = roles_required('admin', 'supervisor')          # whisper, takeover, KPIs, broadcast
+agente_required = roles_required('admin', 'supervisor', 'callcenter')  # atender leads, citas, chats y pausar bot
+monitor_required = roles_required('admin', 'supervisor', 'callcenter', 'lector')  # ver conversaciones
 contabilidad_required = roles_required('admin', 'contabilidad')
 
 
@@ -959,7 +961,7 @@ def api_plantillas_rapidas(tel):
 
 @main.route('/api/whisper/<tel>', methods=['POST'])
 @limiter.exempt
-@admin_required
+@supervisor_required
 def api_whisper(tel):
     """Modo Susurro (Whisper): nota interna del supervisor visible solo en el panel, jamás enviada a WhatsApp."""
     data = request.get_json(silent=True) or {}
@@ -980,7 +982,7 @@ def api_whisper(tel):
 
 @main.route('/api/takeover/<tel>', methods=['POST'])
 @limiter.exempt
-@admin_required
+@supervisor_required
 def api_takeover(tel):
     """Reasigna un chat a otro colaborador o lo devuelve al bot EVO en 1 clic."""
     data = request.get_json(silent=True) or {}
@@ -1088,13 +1090,13 @@ def _calcular_kpis():
 
 
 @main.route('/api/reportes/kpis')
-@admin_required
+@supervisor_required
 def api_reportes_kpis():
     return jsonify(_calcular_kpis()), 200
 
 
 @main.route('/admin/reportes/kpis.csv')
-@admin_required
+@supervisor_required
 def admin_reportes_kpis_csv():
     """Exporta reporte gerencial KPI en CSV delimitado por ';' con BOM UTF-8 (directo para Excel)."""
     import csv
@@ -1328,6 +1330,9 @@ def leads():
     q = request.args.get('q', '').strip()
     page = request.args.get('page', 1, type=int)
     query = Lead.query
+    # Aislamiento por empresa: un asesor callcenter asignado a 1 empresa solo ve los leads de su institución
+    if g.user.rol == 'callcenter' and getattr(g.user, 'empresa_id', None):
+        query = query.filter(Lead.empresa_id == g.user.empresa_id)
     if estado in Lead.ESTADOS:
         query = query.filter_by(estado=estado)
     if cola == 'llamar':
@@ -1555,6 +1560,8 @@ def ia_plantilla_eliminar(pid):
 def admin_citas():
     estado = request.args.get('estado', 'pendiente')
     query = Cita.query
+    if g.user.rol == 'callcenter' and getattr(g.user, 'empresa_id', None):
+        query = query.filter(Cita.empresa_id == g.user.empresa_id)
     if estado in Cita.ESTADOS:
         query = query.filter_by(estado=estado)
     citas = query.order_by(Cita.creado_en.desc()).limit(100).all()

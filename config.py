@@ -167,6 +167,8 @@ class Config:
     GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
     GEMINI_MODEL = _str("GEMINI_MODEL", "gemini-3.8-flash")
     GEMINI_BASE_URL = _str("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta").rstrip("/")
+    GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "").strip()
+    GROQ_WHISPER_MODEL = _str("GROQ_WHISPER_MODEL", "whisper-large-v3-turbo")
     IA_TIMEOUT = _int("IA_TIMEOUT", 20)
     IA_MAX_MSG_DIA_TEL = _int("IA_MAX_MSG_DIA_TEL", 30)          # tope de mensajes con IA por teléfono y día
     IA_MAX_LLAMADAS_DIA = _int("IA_MAX_LLAMADAS_DIA", 2000)      # tope global de llamadas a Gemini por día

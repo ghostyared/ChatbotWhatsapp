@@ -70,12 +70,15 @@
         {% if _rol == 'admin' %}
         <a href="/dashboard" class="nav-tab {{ 'active' if _p == '/dashboard' else '' }}"><i class="fa-solid fa-chart-line"></i> Dashboard</a>
         {% endif %}
-        {% if _rol in ('admin', 'callcenter', 'lector') %}
+        {% if _rol in ('admin', 'supervisor', 'callcenter', 'lector') %}
         <a href="/monitor" class="nav-tab {{ 'active' if _p.startswith('/monitor') else '' }}"><i class="fa-solid fa-comments"></i> Monitor</a>
         {% endif %}
-        {% if _rol in ('admin', 'callcenter') %}
+        {% if _rol in ('admin', 'supervisor', 'callcenter') %}
         <a href="/admin/leads" class="nav-tab {{ 'active' if _p.startswith('/admin/leads') else '' }}"><i class="fa-solid fa-headset"></i> Leads</a>
         <a href="/admin/citas" class="nav-tab {{ 'active' if _p.startswith('/admin/citas') else '' }}"><i class="fa-solid fa-calendar-check"></i> Citas</a>
+        {% endif %}
+        {% if _rol == 'supervisor' %}
+        <a href="/admin/reportes/kpis.csv" class="nav-tab"><i class="fa-solid fa-file-csv"></i> KPIs CSV</a>
         {% endif %}
         {% if _rol in ('admin', 'contabilidad') %}
         <a href="/admin/comprobantes" class="nav-tab {{ 'active' if _p.startswith('/admin/comprobantes') else '' }}">

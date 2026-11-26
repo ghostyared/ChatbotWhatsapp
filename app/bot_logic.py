@@ -146,8 +146,8 @@ def _transcribir_y_guardar_audio(tel, nombre_wa, media):
     if not media_id:
         log.warning("Audio sin media_id para %s", tel)
         return ""
-    if not Config.GEMINI_API_KEY:
-        log.warning("Audio recibido de %s pero GEMINI_API_KEY está vacía en .env", tel)
+    if not Config.GEMINI_API_KEY and not Config.GROQ_API_KEY:
+        log.warning("Audio recibido de %s pero GEMINI_API_KEY y GROQ_API_KEY están vacías en .env", tel)
         return ""
     try:
         audio_bytes, mime = descargar_media(media_id, max_bytes=5 * 1024 * 1024)
@@ -345,11 +345,35 @@ def brain_gethi(tel, txt, btn_id, nombre_wa, tipo='text', media=None, referral=N
         and (not Config.IA_ENABLED or len(palabras - menu_kw) == 0)
     )
     if btn_id in IDS_INICIO or es_cancelar or es_comando_global or es_menu_puro:
+        habia_flujo = estado_flujo.obtener(tel) is not None
         estado_flujo.terminar(tel)
         if not usu.saludo_enviado:
             usu.saludo_enviado = True
             db.session.commit()
+        if es_cancelar and habia_flujo:
+            enviar_texto(tel, "✖️ Operación cancelada. Volvemos al menú principal.")
         enviar_nodo(tel, 'inicio', {'nombre': nombre, 'bot_name': Config.BOT_NAME})
+        return
+
+    # B1a. Botón CMD_BACK (volver al menú raíz o nodo padre si viene indicado como CMD_BACK:<clave>)
+    if btn_id == "CMD_BACK" or btn_id.startswith("CMD_BACK:"):
+        destino = btn_id.split(":", 1)[1].strip() if ":" in btn_id else "inicio"
+        estado_flujo.terminar(tel)
+        if not enviar_nodo(tel, destino or "inicio", {'nombre': nombre, 'bot_name': Config.BOT_NAME}):
+            enviar_nodo(tel, 'inicio', {'nombre': nombre, 'bot_name': Config.BOT_NAME})
+        return
+
+    # B1a2. Cambiar de empresa / institución en modo multi-tenant
+    if btn_id == "CMD_SWITCH_COMPANY" or (tipo == 'text' and txt_norm in ("cambiar empresa", "cambiar institucion", "otras sedes", "ver instituciones")):
+        estado_flujo.terminar(tel)
+        usu.empresa_id = None
+        db.session.commit()
+        empresas_act = Empresa.query.filter_by(activo=True).order_by(Empresa.orden.asc(), Empresa.id.asc()).all()
+        if empresas_act:
+            from .asistente import _pedir_empresa
+            _pedir_empresa(tel, empresas_act)
+        else:
+            enviar_nodo(tel, 'inicio', {'nombre': nombre, 'bot_name': Config.BOT_NAME})
         return
 
     # B1b. Palabra clave "continuar" tras cierre por inactividad -> deriva directo a asesor

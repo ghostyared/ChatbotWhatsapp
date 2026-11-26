@@ -640,6 +640,30 @@ class Colaborador(db.Model):
     estado = db.Column(db.String(50))
 
 
+class AuditoriaAdmin(db.Model):
+    """Registro de auditoría de acciones administrativas críticas en el panel web."""
+    __tablename__ = 'auditoria_admin'
+    id = db.Column(db.Integer, primary_key=True)
+    usuario = db.Column(db.String(60), nullable=False, index=True)
+    accion = db.Column(db.String(60), nullable=False, index=True)
+    detalle = db.Column(db.String(400), default='')
+    ip = db.Column(db.String(60), default='')
+    creado_en = db.Column(db.DateTime, default=utcnow, index=True)
+
+    @staticmethod
+    def registrar(usuario, accion, detalle="", ip=""):
+        try:
+            db.session.add(AuditoriaAdmin(
+                usuario=str(usuario or 'sistema')[:60],
+                accion=str(accion)[:60],
+                detalle=str(detalle or '')[:400],
+                ip=str(ip or '')[:60],
+            ))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+
 class UsuarioSistema(db.Model):
     """Usuarios del panel web."""
     __tablename__ = 'usuarios_sistema'
