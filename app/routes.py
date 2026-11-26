@@ -1156,20 +1156,30 @@ def admin_usuarios():
             elif UsuarioSistema.query.filter_by(username=username).first():
                 flash(f'El usuario "{username}" ya existe.', 'danger')
             else:
+                emp_id_raw = (request.form.get('empresa_id') or '').strip()
+                try:
+                    max_chats = max(1, min(100, int(request.form.get('max_chats') or 10)))
+                except ValueError:
+                    max_chats = 10
                 nuevo = UsuarioSistema(
                     username=username,
                     nombre_completo=nombre_completo or username,
                     rol=rol,
-                    activo=True
+                    empresa_id=int(emp_id_raw) if emp_id_raw.isdigit() else None,
+                    max_chats=max_chats,
+                    en_linea=True,
+                    activo=True,
                 )
                 nuevo.set_password(password)
                 db.session.add(nuevo)
                 db.session.commit()
+                AuditoriaAdmin.registrar(g.user.username, 'usuario_creado', f'{username} ({rol})', get_remote_address())
                 flash(f'Usuario "{username}" ({rol}) creado exitosamente.', 'success')
                 return redirect(url_for('main.admin_usuarios'))
                 
     usuarios = UsuarioSistema.query.order_by(UsuarioSistema.creado_en.desc()).all()
-    return render_template('usuarios.html', usuarios=usuarios, current_user=current_user,
+    empresas = Empresa.query.filter_by(activo=True).order_by(Empresa.orden.asc(), Empresa.id.asc()).all()
+    return render_template('usuarios.html', usuarios=usuarios, empresas=empresas, current_user=current_user,
                            min_password=Config.PASSWORD_MIN_LENGTH)
 
 @main.route('/admin/perfil', methods=['POST'])

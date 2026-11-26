@@ -496,14 +496,30 @@
                 <div class="form-group">
                     <label class="form-label">Rol y Nivel de Acceso</label>
                     <select name="rol" class="form-select" required>
-                        <option value="callcenter">📞 Call Center (CRM Interesados + Llamadas + Atender Chats)</option>
+                        <option value="callcenter">📞 Call Center / Asesor (CRM Leads + Citas + Atender Chats)</option>
+                        <option value="supervisor">🎯 Supervisor (Torre de Control + Whisper/Takeover + KPIs)</option>
                         <option value="lector" selected>👁️ Lector (Solo ver conversaciones)</option>
                         <option value="contabilidad">🧾 Contabilidad (Solo revisar comprobantes de pago)</option>
                         <option value="admin">🛡️ Administrador (Acceso total al sistema)</option>
                     </select>
                     <small style="color: var(--text-secondary); font-size: 11.5px; display: block; margin-top: 6px;">
-                        <strong>Call Center</strong> accede al CRM de Interesados (tomar leads, llamar, registrar resultado) y puede responder en el Monitor en Vivo. <strong>Lector</strong> solo observa chats; <strong>Contabilidad</strong> solo revisa comprobantes.
+                        <strong>Call Center</strong> atiende leads, citas y chats (si le asignas una empresa, solo verá esa institución). <strong>Supervisor</strong> tiene Whisper, Takeover y KPIs sin tocar configuración técnica.
                     </small>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Empresa asignada (Opcional — para aislamiento y Round-Robin)</label>
+                    <select name="empresa_id" class="form-select">
+                        <option value="">Todas las empresas (general)</option>
+                        {% for e in empresas %}
+                        <option value="{{ e.id }}">{{ e.nombre_comercial }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Tope de chats/leads abiertos simultáneos (Round-Robin)</label>
+                    <input type="number" name="max_chats" class="form-input" value="10" min="1" max="100">
                 </div>
 
                 <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
