@@ -474,6 +474,9 @@
                 <button type="button" id="btnVistaToggle" onclick="toggleVistaLeads()" class="btn-chat" style="cursor:pointer;padding:7px 12px;font-size:12.5px;">
                     <i class="fa-solid fa-table-columns"></i> Vista Kanban
                 </button>
+                <a href="{{ url_for('main.leads_exportar_csv') }}" class="btn-call" style="padding:7px 12px;font-size:12.5px;">
+                    <i class="fa-solid fa-file-csv"></i> Exportar CSV
+                </a>
                 {% if session.get('user_role') == 'admin' %}
                 <button type="button" onclick="const b=document.getElementById('broadcastBox');b.style.display=b.style.display==='none'?'block':'none';" class="btn-take" style="cursor:pointer;padding:7px 12px;font-size:12.5px;">
                     <i class="fa-solid fa-bullhorn"></i> Campaña Broadcast HSM

@@ -19,9 +19,10 @@ from . import csrf, endpoints_client as ep_cli, limiter
 from .bot_logic import brain_gethi
 from .models import (Ajuste, ApiEndpoint, AuditoriaAdmin, Cita, Colaborador, Comprobante, Empresa, IaUso, Lead, LeadEvento,
                      MaterialComercial, Mensaje, PlantillaRapida, PreguntaPendiente, ReglaCampana, RespuestaBot,
-                     Usuario, UsuarioSistema, db, utcnow)
+                     Usuario, UsuarioSistema, WebhookSaliente, db, utcnow)
 from .services import (enviar_documento, enviar_imagen, enviar_plantilla, enviar_texto, enviar_video,
                        registrar_msg, subir_media)
+from .webhooks_out import disparar_evento
 from .timeutil import to_local
 
 logger = logging.getLogger(__name__)
@@ -1313,6 +1314,10 @@ def comprobante_revisar(cid):
         return redirect(destino)
     c.revisado_por, c.revisado_en = g.user.username, utcnow()
     db.session.commit()
+    if accion == 'aprobar':
+        disparar_evento('comprobante.approved', {
+            "id": c.id, "codigo": c.codigo, "dni": c.dni_estudiante, "telefono": c.telefono, "revisado_por": g.user.username,
+        })
     resp = enviar_texto(c.telefono, aviso)
     if resp is not None and resp.status_code == 200:
         flash(f'{c.codigo} {c.estado}. Se notificó al usuario por WhatsApp.', 'success')
@@ -1422,13 +1427,50 @@ def lead_actualizar(lid):
     tags_raw = request.form.get('tags')
     if tags_raw is not None:
         l.tags = ','.join(t.strip() for t in tags_raw.split(',') if t.strip())[:255]
+    motivo_desc = (request.form.get('motivo_descarte') or '').strip()[:60]
+    if motivo_desc in Lead.MOTIVOS_DESCARTE or motivo_desc == '':
+        l.motivo_descarte = motivo_desc
     l.notas_internas = (request.form.get('notas') or '').strip()[:500]
     l.atendido_por = g.user.username
     if cambios:
         db.session.add(LeadEvento(lead_id=l.id, tipo='estado', detalle=' · '.join(cambios)[:300], usuario=g.user.username))
     db.session.commit()
+    if nuevo == 'matriculado':
+        disparar_evento('lead.won', {
+            "lead_id": l.id, "nombre": l.nombre, "telefono": l.telefono, "empresa_id": l.empresa_id,
+            "sede": l.sede_nombre, "nivel": l.nivel, "origen": l.origen, "campana": l.campana_nombre,
+        })
     flash(f'Interesado #{l.id} actualizado.', 'success')
     return redirect(_destino_leads(request.form.get('next', '')))
+
+
+@main.route('/admin/leads/exportar.csv')
+@agente_required
+def leads_exportar_csv():
+    """Exporta Leads a CSV delimitado por ';' con BOM UTF-8 (Excel), respetando aislamiento por empresa."""
+    import csv
+    from io import StringIO
+    q = Lead.query
+    if g.user.rol == 'callcenter' and getattr(g.user, 'empresa_id', None):
+        q = q.filter(Lead.empresa_id == g.user.empresa_id)
+    filas = q.order_by(Lead.creado_en.desc()).limit(5000).all()
+    buf = StringIO()
+    buf.write('\ufeff')
+    w = csv.writer(buf, delimiter=';')
+    w.writerow(['ID', 'Fecha', 'Nombre', 'WhatsApp', 'Tel Alternativo', 'Sede/Empresa', 'Programa', 'Origen',
+                'Campana', 'Score', 'Estado', 'Motivo Descarte', 'Prioridad', 'Asignado', 'Tags', 'Resumen'])
+    for l in filas:
+        w.writerow([
+            l.id, to_local(l.creado_en), l.nombre or '', l.telefono or '', l.telefono_contacto or '',
+            l.sede_nombre or '', l.nivel or '', l.origen or 'organico', l.campana_nombre or '',
+            l.score or 'frio', l.estado or '', getattr(l, 'motivo_descarte', '') or '',
+            l.prioridad or '', l.asignado_a or '', l.tags or '', (l.resumen_ia or l.comentario or '').replace('\n', ' '),
+        ])
+    return Response(
+        buf.getvalue().encode('utf-8'),
+        mimetype='text/csv; charset=utf-8',
+        headers={'Content-Disposition': 'attachment; filename=leads_evo.csv'},
+    )
 
 
 @main.route('/admin/leads/<int:lid>/reactivar_bot', methods=['POST'])
@@ -1458,6 +1500,7 @@ def ia_panel():
     empresas_map = {e.id: e.nombre_comercial for e in empresas}
     campanas = ReglaCampana.query.order_by(ReglaCampana.id.desc()).all()
     materiales = MaterialComercial.query.order_by(MaterialComercial.id.desc()).all()
+    webhooks = WebhookSaliente.query.order_by(WebhookSaliente.id.desc()).all()
     PlantillaRapida.seed()
     plantillas = PlantillaRapida.query.order_by(PlantillaRapida.id.asc()).all()
     preguntas_pendientes = (
@@ -1473,10 +1516,43 @@ def ia_panel():
                            ultimo_error=ia_router.ULTIMO_ERROR,
                            empresas=empresas, empresas_map=empresas_map, campanas=campanas,
                            materiales=materiales, plantillas=plantillas,
+                           webhooks=webhooks, webhook_eventos=WebhookSaliente.EVENTOS,
                            preguntas_pendientes=preguntas_pendientes,
                            saludo_preview=saludo_preview,
                            conocimiento=aj.valor if aj else '',
                            actualizado=(f"{to_local(aj.actualizado_en)} por {aj.actualizado_por}" if aj and aj.actualizado_en else ''))
+
+
+@main.route('/admin/ia/webhooks/guardar', methods=['POST'])
+@admin_required
+def ia_webhook_guardar():
+    from .crypto import cifrar_token
+    nombre = (request.form.get('nombre') or '').strip()[:120]
+    evento = (request.form.get('evento') or '*').strip()[:60]
+    url = (request.form.get('url') or '').strip()[:500]
+    sec = (request.form.get('secret') or '').strip()
+    if not nombre or not url.startswith(('http://', 'https://')):
+        flash('Indica un nombre y una URL HTTPS válida para el webhook.', 'danger')
+        return redirect(url_for('main.ia_panel'))
+    if evento not in WebhookSaliente.EVENTOS:
+        evento = '*'
+    h = WebhookSaliente(nombre=nombre, evento=evento, url=url, secret=cifrar_token(sec) if sec else '', activo=True)
+    db.session.add(h)
+    db.session.commit()
+    AuditoriaAdmin.registrar(g.user.username, 'webhook_creado', f'{nombre} ({evento}) -> {url}', get_remote_address())
+    flash(f'Webhook saliente «{h.nombre}» guardado.', 'success')
+    return redirect(url_for('main.ia_panel'))
+
+
+@main.route('/admin/ia/webhooks/<int:wid>/eliminar', methods=['POST'])
+@admin_required
+def ia_webhook_eliminar(wid):
+    h = db.session.get(WebhookSaliente, wid)
+    if h:
+        db.session.delete(h)
+        db.session.commit()
+        flash('Webhook eliminado.', 'info')
+    return redirect(url_for('main.ia_panel'))
 
 
 @main.route('/admin/ia/materiales/guardar', methods=['POST'])

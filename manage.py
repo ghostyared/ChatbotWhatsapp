@@ -64,6 +64,8 @@ COLUMNAS_NUEVAS = [
     ("leads", "ctwa_clid", "VARCHAR(200)"),
     ("leads", "score", "VARCHAR(15) DEFAULT 'frio'"),
     ("leads", "tags", "VARCHAR(255) DEFAULT ''"),
+    ("leads", "motivo_descarte", "VARCHAR(60) DEFAULT ''"),
+    ("leads", "seguimiento_20h_enviado", "BOOLEAN NOT NULL DEFAULT FALSE"),
     ("leads", "csat", "INTEGER"),
     ("leads", "primera_respuesta_en", "TIMESTAMP"),
     ("leads", "resuelto_en", "TIMESTAMP"),

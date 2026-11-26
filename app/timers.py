@@ -52,9 +52,9 @@ def _texto_plantilla(atajo, defecto):
 
 
 def ejecutar_ciclo_timers(ahora=None):
-    """Ejecuta una pasada de SLA de asesores + inactividad de usuarios. Devuelve conteos."""
+    """Ejecuta una pasada de SLA de asesores + inactividad de usuarios + Drip 20h. Devuelve conteos."""
     ahora = ahora or utcnow()
-    stats = {"sla_retomados": 0, "avisos_inactividad": 0, "cierres_inactividad": 0}
+    stats = {"sla_retomados": 0, "avisos_inactividad": 0, "cierres_inactividad": 0, "drip_20h": 0}
 
     # 1. SLA de asesor: chats en cola que superaron HANDOFF_SLA_SECONDS sin respuesta humana
     limite_sla = ahora - timedelta(seconds=Config.HANDOFF_SLA_SECONDS)
@@ -126,6 +126,34 @@ def ejecutar_ciclo_timers(ahora=None):
             lead.resuelto_en = ahora
         db.session.commit()
         stats["cierres_inactividad"] += 1
+
+    # 4. Seguimiento automático Drip 20h (dentro de la ventana gratuita de 24h de Meta)
+    if Config.DRIP_20H_ENABLED:
+        hace_20h = ahora - timedelta(hours=20)
+        hace_23h = ahora - timedelta(hours=23)
+        candidatos = Lead.query.filter(
+            Lead.estado.in_(('nuevo', 'contactado')),
+            Lead.score.in_(('tibio', 'caliente')),
+            Lead.seguimiento_20h_enviado.is_(False),
+        ).limit(50).all()
+        for l in candidatos:
+            usu = Usuario.query.filter_by(telefono=l.telefono).first()
+            if not usu or getattr(usu, 'opt_out', False):
+                continue
+            ref = getattr(usu, 'ultimo_msg_entrada', None) or usu.ultima_vez
+            if not ref or not (hace_23h <= ref <= hace_20h):
+                continue
+            emp = db.session.get(Empresa, l.empresa_id) if l.empresa_id else None
+            nom_emp = emp.nombre_comercial if emp else (l.sede_nombre or Config.COMPANY_NAME)
+            enviar_botones(
+                l.telefono,
+                f"¡Hola *{l.nombre or 'estimado(a)'}*! 👋 Soy *{Config.BOT_NAME}*.\n\n"
+                f"¿Te quedó alguna duda sobre *{nom_emp}*? Aún contamos con vacantes disponibles y podemos agendar una llamada o visita guiada para ayudarte.",
+                [("acc_asesor", "📅 Agendar cita"), ("CMD_MAIN_MENU", "🏠 Menú Principal")],
+            )
+            l.seguimiento_20h_enviado = True
+            db.session.commit()
+            stats["drip_20h"] += 1
 
     return stats
 

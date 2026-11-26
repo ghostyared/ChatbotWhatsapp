@@ -804,6 +804,43 @@
         </div>
 
         <div class="ia-card">
+            <h3><i class="fa-solid fa-diagram-project"></i> Webhooks Salientes por Eventos (n8n / Zapier / ERP / Google Calendar)</h3>
+            <p style="color:var(--text-secondary);font-size:13px;margin-top:0;">
+                Dispara JSON firmado (<code>X-EVO-Signature: sha256=...</code>) automáticamente cuando ocurre un evento clave en el CRM.
+            </p>
+            <form method="POST" action="{{ url_for('main.ia_webhook_guardar') }}" style="border:1px solid var(--border-color);border-radius:8px;padding:14px;background:#0f181e;margin-bottom:14px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:10px;">
+                    <input type="text" name="nombre" required placeholder="Nombre (ej. Flujo n8n Matrículas)" style="padding:8px 10px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);">
+                    <select name="evento" style="padding:8px 10px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);">
+                        {% for ev in webhook_eventos %}
+                        <option value="{{ ev }}">{{ 'Todos los eventos (*)' if ev == '*' else ev }}</option>
+                        {% endfor %}
+                    </select>
+                    <input type="text" name="url" required placeholder="https://n8n.tudominio.com/webhook/..." style="padding:8px 10px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);">
+                    <input type="text" name="secret" placeholder="Secreto HMAC (opcional, cifrado en BD)" style="padding:8px 10px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);">
+                </div>
+                <button type="submit" class="btn-guardar"><i class="fa-solid fa-plus"></i> Guardar webhook</button>
+            </form>
+            {% if webhooks %}
+            <div style="display:flex;flex-direction:column;gap:8px;">
+                {% for h in webhooks %}
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 14px;border:1px solid var(--border-color);border-radius:8px;background:#0f181e;font-size:13px;">
+                    <div>
+                        <span class="chip">{{ h.evento }}</span> <strong>{{ h.nombre }}</strong>
+                        <small style="color:var(--text-secondary);margin-left:6px;">{{ h.url[:60] }}</small>
+                    </div>
+                    <form method="POST" action="{{ url_for('main.ia_webhook_eliminar', wid=h.id) }}" style="margin:0;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn-no"><i class="fa-solid fa-trash"></i></button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="ia-card">
             <h3><i class="fa-solid fa-flask"></i> Simulador de respuesta (prueba tu texto oficial)</h3>
             <p style="color:var(--text-secondary);font-size:13px;margin-top:0;">
                 Escribe una pregunta tal como lo haría un padre o postulante en WhatsApp (p. ej. <em>«Hola, quiero info de precios del colegio»</em> o <em>«Qué carreras tiene el instituto»</em>) para verificar cómo responde la IA con lo que guardaste arriba.

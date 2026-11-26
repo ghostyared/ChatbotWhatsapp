@@ -170,6 +170,8 @@ class Lead(db.Model):
     ctwa_clid = db.Column(db.String(200), nullable=True)
     score = db.Column(db.String(15), default='frio', index=True)          # frio|tibio|caliente
     tags = db.Column(db.String(255), default='')                          # etiquetas separadas por coma (ej. Beca,Turno Noche)
+    motivo_descarte = db.Column(db.String(60), default='')                # precio|distancia|horario|competencia|no_contesta|otro
+    seguimiento_20h_enviado = db.Column(db.Boolean, default=False, nullable=False)
     csat = db.Column(db.Integer, nullable=True)                           # satisfacción 1-5 estrellas
     primera_respuesta_en = db.Column(db.DateTime, nullable=True)
     resuelto_en = db.Column(db.DateTime, nullable=True)
@@ -179,7 +181,22 @@ class Lead(db.Model):
     ESTADOS = ('nuevo', 'contactado', 'visita', 'matriculado', 'descartado')
     PRIORIDADES = ('alta', 'media', 'baja')
     SCORES = ('frio', 'tibio', 'caliente')
+    MOTIVOS_DESCARTE = ('precio', 'distancia', 'horario', 'competencia', 'no_contesta', 'sin_vacante', 'otro')
     RESULTADOS_LLAMADA = ('pendiente', 'contactado', 'no_contesta', 'volver_llamar', 'cita_agendada', 'matriculado', 'descartado')
+
+
+class WebhookSaliente(db.Model):
+    """Webhooks salientes firmados (HMAC-SHA256) para conectar con n8n, Zapier, Google Calendar, ERP o Power BI."""
+    __tablename__ = 'webhooks_salientes'
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(120), nullable=False)
+    evento = db.Column(db.String(60), nullable=False, index=True)         # lead.created|lead.won|cita.created|comprobante.approved|knowledge_gap.created|*
+    url = db.Column(db.String(500), nullable=False)
+    secret = db.Column(db.Text, default='')                               # cifrado en BD con app.crypto
+    activo = db.Column(db.Boolean, default=True, nullable=False)
+    creado_en = db.Column(db.DateTime, default=utcnow)
+
+    EVENTOS = ('*', 'lead.created', 'lead.won', 'cita.created', 'comprobante.approved', 'knowledge_gap.created')
 
 
 class MaterialComercial(db.Model):

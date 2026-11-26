@@ -61,6 +61,7 @@ class Config:
     HANDOFF_SLA_SECONDS = max(30, _int("HANDOFF_SLA_SECONDS", 180))
     USER_INACTIVITY_WARNING_MIN = max(1, _int("USER_INACTIVITY_WARNING_MIN", 3))
     USER_INACTIVITY_CLOSE_MIN = max(1, _int("USER_INACTIVITY_CLOSE_MIN", 2))
+    DRIP_20H_ENABLED = _bool("DRIP_20H_ENABLED", False)  # seguimiento automático a las 20h (dentro de ventana gratuita 24h)
     ATENCION_HORA_INICIO = _int("ATENCION_HORA_INICIO", 8)
     ATENCION_HORA_FIN = _int("ATENCION_HORA_FIN", 18)
     ATENCION_DIAS = _int_list("ATENCION_DIAS", "0,1,2,3,4")   # 0=Lun .. 6=Dom
