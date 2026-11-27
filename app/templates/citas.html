@@ -61,7 +61,8 @@
                 <tr>
                     <td><strong>#{{ c.id }}</strong><br><small style="color:var(--muted);">{{ c.creado_en|localtime }}</small></td>
                     <td>
-                        <strong>{{ c.nombre or 'Sin nombre' }}</strong><br>
+                        <strong>{{ c.nombre or 'Sin nombre' }}</strong>
+                        {% if c.dni %}<span style="background:rgba(0,168,132,.18);color:#4ade80;border-radius:5px;padding:1px 6px;font-size:11px;font-weight:700;margin-left:4px;">🪪 {{ c.dni }}</span>{% endif %}<br>
                         <small style="color:var(--muted);">+{{ c.telefono }}</small>
                         <div style="display:flex;gap:5px;margin-top:5px;">
                             <a href="{{ url_for('main.monitor', tel=c.telefono) }}" class="btn btn-blue"><i class="fa-solid fa-comments"></i> Chat</a>

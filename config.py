@@ -138,6 +138,11 @@ class Config:
     ACAD_LOCK_MINUTES = _int("ACAD_LOCK_MINUTES", 30)
     ACAD_MAX_CONSULTAS_DIA = _int("ACAD_MAX_CONSULTAS_DIA", 25)  # tope diario de consultas académicas por teléfono
 
+    # --- CONSULTA DNI EXTERNA (RENIEC / validación de identidad en citas y registros) ---
+    DNI_API_URL = _str("DNI_API_URL", "https://www.dsgperutech.com/api-customer/v1/dni/{dni}")
+    DNI_API_TOKEN = os.environ.get("DNI_API_TOKEN", "").strip()
+    DNI_API_TIMEOUT = _int("DNI_API_TIMEOUT", 8)
+
     # --- COMPROBANTES DE PAGO (archivos recibidos por WhatsApp) ---
     COMPROBANTES_DIR = _str("COMPROBANTES_DIR", "/app/data/comprobantes")
     COMPROBANTE_MAX_MB = _int("COMPROBANTE_MAX_MB", 5)

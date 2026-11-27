@@ -58,7 +58,12 @@ class Usuario(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     telefono = db.Column(db.String(20), unique=True, index=True)
     nombre_wa = db.Column(db.String(100))
-    dni = db.Column(db.String(20), nullable=True, index=True)  # ID validado (memoria)
+    dni = db.Column(db.String(20), nullable=True, index=True)  # DNI validado (memoria)
+    nombres = db.Column(db.String(120), nullable=True)
+    apellido_paterno = db.Column(db.String(80), nullable=True)
+    apellido_materno = db.Column(db.String(80), nullable=True)
+    nombre_completo = db.Column(db.String(200), nullable=True)
+    dni_verificado = db.Column(db.Boolean, default=False, nullable=False)
     ultima_vez = db.Column(db.DateTime, default=utcnow)
     bot_pausado = db.Column(db.Boolean, default=False)
     intentos_id = db.Column(db.Integer, default=0, nullable=False)
@@ -146,6 +151,7 @@ class Lead(db.Model):
     __tablename__ = 'leads'
     id = db.Column(db.Integer, primary_key=True)
     telefono = db.Column(db.String(20), index=True)
+    dni = db.Column(db.String(20), nullable=True, index=True)
     nombre = db.Column(db.String(120))
     sede_id = db.Column(db.String(60))
     sede_nombre = db.Column(db.String(120))
@@ -231,6 +237,7 @@ class Cita(db.Model):
     lead_id = db.Column(db.Integer, db.ForeignKey('leads.id'), nullable=True, index=True)
     empresa_id = db.Column(db.Integer, db.ForeignKey('empresas.id'), nullable=True, index=True)
     telefono = db.Column(db.String(20), nullable=False, index=True)
+    dni = db.Column(db.String(20), nullable=True, index=True)
     nombre = db.Column(db.String(120), default='')
     fecha_preferida = db.Column(db.String(60), default='')
     franja = db.Column(db.String(80), default='')
@@ -516,6 +523,20 @@ class ApiEndpoint(db.Model):
                 body_template='{\n  "lead_id": {lead_id},\n  "empresa_id": {empresa_id},\n  "franja": "{franja}",\n  "motivo": "{motivo}"\n}',
                 timeout=10,
                 activo=False,
+            ),
+            dict(
+                clave="consultar_dni_externo",
+                nombre="Consultar DNI Externo (RENIEC / Identidad)",
+                descripcion="Consulta nombres y apellidos oficiales por DNI (8 dígitos) al agendar citas o registrarse.",
+                metodo="GET",
+                url=Config.DNI_API_URL or "https://www.dsgperutech.com/api-customer/v1/dni/{dni}",
+                auth_header="Authorization",
+                auth_scheme="Bearer",
+                token=Config.DNI_API_TOKEN or "",
+                headers_json='{"Accept": "application/json"}',
+                body_template="",
+                timeout=Config.DNI_API_TIMEOUT or 8,
+                activo=True,
             ),
         ]
         for item in iniciales:

@@ -554,7 +554,8 @@
                         <div style="font-size:11px;color:#8696a0;margin-top:4px;">{{ l.creado_en|localtime }}</div>
                     </td>
                     <td>
-                        <strong>{{ l.nombre or 'Sin nombre' }}</strong><br>
+                        <strong>{{ l.nombre or 'Sin nombre' }}</strong>
+                        {% if l.dni %}<span class="chip" style="background:rgba(0,168,132,.18);color:#4ade80;margin-left:4px;">🪪 {{ l.dni }}</span>{% endif %}<br>
                         <small style="color:#8696a0;">WA: +{{ l.telefono }}</small>
                         {% if l.telefono_contacto %}<br><small style="color:#4ade80;">Tel: {{ l.telefono_contacto }}</small>{% endif %}
                         <div class="call-actions">

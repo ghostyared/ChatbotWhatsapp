@@ -1467,11 +1467,11 @@ def leads_exportar_csv():
     buf = StringIO()
     buf.write('\ufeff')
     w = csv.writer(buf, delimiter=';')
-    w.writerow(['ID', 'Fecha', 'Nombre', 'WhatsApp', 'Tel Alternativo', 'Sede/Empresa', 'Programa', 'Origen',
+    w.writerow(['ID', 'Fecha', 'DNI', 'Nombre', 'WhatsApp', 'Tel Alternativo', 'Sede/Empresa', 'Programa', 'Origen',
                 'Campana', 'Score', 'Estado', 'Motivo Descarte', 'Prioridad', 'Asignado', 'Tags', 'Resumen'])
     for l in filas:
         w.writerow([
-            l.id, to_local(l.creado_en), l.nombre or '', l.telefono or '', l.telefono_contacto or '',
+            l.id, to_local(l.creado_en), getattr(l, 'dni', '') or '', l.nombre or '', l.telefono or '', l.telefono_contacto or '',
             l.sede_nombre or '', l.nivel or '', l.origen or 'organico', l.campana_nombre or '',
             l.score or 'frio', l.estado or '', getattr(l, 'motivo_descarte', '') or '',
             l.prioridad or '', l.asignado_a or '', l.tags or '', (l.resumen_ia or l.comentario or '').replace('\n', ' '),

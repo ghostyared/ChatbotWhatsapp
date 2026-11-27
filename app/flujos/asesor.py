@@ -96,6 +96,164 @@ def notificar_callcenter(lead):
     return avisado
 
 
+def consultar_dni_externo(dni):
+    """Consulta nombres y apellidos oficiales usando el endpoint 'consultar_dni_externo' de /admin/endpoints."""
+    ep = ep_cli.obtener_endpoint("consultar_dni_externo", solo_activo=True)
+    if not ep:
+        return {"ok": False, "error": "endpoint_inactivo"}
+    res = ep_cli.ejecutar(ep, {"dni": dni})
+    if not res.get("ok") or not isinstance(res.get("data"), dict):
+        logger.warning("Consulta DNI externo falló para ****%s: %s", dni[-4:], res.get("error"))
+        return {"ok": False, "error": res.get("error") or "sin_respuesta"}
+    data = res["data"]
+    r = data.get("result") if isinstance(data.get("result"), dict) else data
+    if not data.get("success") or not isinstance(r, dict):
+        return {"ok": False, "error": "no_encontrado"}
+    nombres = str(r.get("name") or r.get("nombres") or "").strip()
+    paternal = str(r.get("paternal") or r.get("apellido_paterno") or "").strip()
+    maternal = str(r.get("maternal") or r.get("apellido_materno") or "").strip()
+    completo = " ".join(p for p in (nombres, paternal, maternal) if p).strip()
+    if not completo:
+        return {"ok": False, "error": "sin_nombre"}
+    return {
+        "ok": True,
+        "dni": str(r.get("dni") or dni).strip()[:20],
+        "nombres": nombres[:120],
+        "paternal": paternal[:80],
+        "maternal": maternal[:80],
+        "nombre_completo": completo[:200],
+    }
+
+
+def _pedir_identificacion(ctx, st, d, intro):
+    """Pide DNI (8 dígitos) para validar identidad o confirma directamente si ya está verificado en BD."""
+    if ctx.usu.dni and getattr(ctx.usu, "nombre_completo", None):
+        estado.avanzar(
+            st, "confirmar_dni",
+            dni=ctx.usu.dni,
+            nombres=ctx.usu.nombres or "",
+            paternal=ctx.usu.apellido_paterno or "",
+            maternal=ctx.usu.apellido_materno or "",
+            nombre_completo=ctx.usu.nombre_completo,
+        )
+        enviar_botones(
+            ctx.tel,
+            f"{intro}\n\n👤 Tengo registrado tu DNI *****{ctx.usu.dni[-4:]}*:\n"
+            f"*{ctx.usu.nombre_completo}*\n\n¿Confirmas que eres tú?",
+            [("ase_dni_ok:si", "✅ Sí, soy yo"), ("ase_dni_ok:no", "✏️ Cambiar DNI")],
+            registro="[Confirmación de DNI guardado enviada]",
+        )
+        return
+    estado.avanzar(st, "datos")
+    enviar_texto(
+        ctx.tel,
+        f"{intro}\n\n🪪 Para registrar tu atención con tus datos oficiales, escribe tu número de *DNI* (8 dígitos).\n"
+        "_Si no cuentas con DNI peruano, escribe tu nombre completo._",
+    )
+
+
+def _finalizar_registro(ctx, d, nombre_lead, detalle, dni="", nombres="", paternal="", maternal=""):
+    """Guarda identidad en Usuario, crea/actualiza Lead + Cita, asigna Round-Robin y confirma al usuario."""
+    sede = d.get("sede") or "General"
+    tipo_cita = d.get("tipo_cita") or "Llamada"
+    dia = d.get("dia") or "Próximo día hábil"
+    franja = d.get("franja") or ""
+    franja_completa = f"{dia} · {franja}".strip(" ·") if franja else ""
+    fuera_horario = bool(d.get("fuera_horario"))
+
+    if dni:
+        ctx.usu.dni = dni[:20]
+        ctx.usu.nombres = (nombres or ctx.usu.nombres or "")[:120]
+        ctx.usu.apellido_paterno = (paternal or ctx.usu.apellido_paterno or "")[:80]
+        ctx.usu.apellido_materno = (maternal or ctx.usu.apellido_materno or "")[:80]
+        ctx.usu.nombre_completo = (nombre_lead or ctx.usu.nombre_completo or "")[:200]
+        ctx.usu.dni_verificado = True
+
+    lead = Lead.query.filter_by(telefono=ctx.tel).filter(
+        Lead.estado.in_(("nuevo", "contactado", "visita"))
+    ).first() or Lead(telefono=ctx.tel)
+    lead.nombre = (nombre_lead or ctx.nombre or "Sin nombre")[:120]
+    if dni:
+        lead.dni = dni[:20]
+    lead.sede_nombre = sede[:120]
+    lead.comentario = detalle[:400]
+    if franja_completa:
+        lead.visita_pref = franja_completa[:120]
+    lead.resumen_ia = (
+        f"{tipo_cita} agendada ({franja_completa}) · {sede}: {detalle}"
+        if franja_completa else f"Solicitó asesor en vivo · {sede}: {detalle}"
+    )
+    lead.quiere_asesor = True
+    lead.prioridad = "alta"
+    lead.score = "caliente"
+    lead.empresa_id = lead.empresa_id or ctx.usu.empresa_id
+    if not lead.asignado_a:
+        auto_asesor = asignar_asesor_round_robin(lead.empresa_id)
+        if auto_asesor:
+            lead.asignado_a = auto_asesor
+    lead.resultado_llamada = "cita_agendada" if franja_completa else "pendiente"
+    lead.estado = "visita" if franja_completa else (lead.estado or "nuevo")
+    db.session.add(lead)
+    db.session.commit()
+    if lead.asignado_a:
+        ctx.usu.asignado_a = lead.asignado_a
+        db.session.add(LeadEvento(lead_id=lead.id, tipo='asignacion', detalle=f'Auto-asignado (Round-Robin) a {lead.asignado_a}', usuario='sistema'))
+        db.session.commit()
+
+    cita_creada = None
+    if franja_completa:
+        cita_creada = Cita(
+            lead_id=lead.id,
+            empresa_id=lead.empresa_id,
+            telefono=ctx.tel,
+            dni=dni[:20] if dni else None,
+            nombre=lead.nombre or ctx.nombre or "",
+            fecha_preferida=dia[:60],
+            franja=franja[:80],
+            motivo=f"[{tipo_cita} · {sede}] {detalle}"[:500],
+            asignado_a=lead.asignado_a,
+            estado="pendiente",
+        )
+        db.session.add(cita_creada)
+        db.session.commit()
+        ep_cita = ep_cli.obtener_endpoint("agendar_cita", solo_activo=True)
+        if ep_cita:
+            ep_cli.ejecutar(ep_cita, {
+                "lead_id": lead.id,
+                "empresa_id": lead.empresa_id or 0,
+                "franja": franja_completa,
+                "motivo": detalle[:300],
+            })
+
+    lead.asesor_avisado = notificar_callcenter(lead)
+    if not fuera_horario and not franja_completa:
+        ctx.usu.bot_pausado = True
+        ctx.usu.estado_chat = "en_cola"
+        ctx.usu.esperando_asesor_desde = utcnow()
+    db.session.commit()
+    estado.terminar(ctx.tel)
+
+    dni_linea = f"\n🪪 *DNI:* ****{dni[-4:]}" if dni else ""
+    if franja_completa:
+        cod = f"#C-{cita_creada.id:04d}" if cita_creada else f"#{lead.id}"
+        enviar_botones(
+            ctx.tel,
+            f"📅 *¡Cita confirmada ({cod})!*\n\n"
+            f"🏫 *Institución:* {sede}\n"
+            f"📌 *Modalidad:* {tipo_cita}\n"
+            f"🕒 *Horario:* {franja_completa}\n"
+            f"👤 *Titular:* {lead.nombre}{dni_linea}\n\n"
+            "Agendamos tu llamada/cita y un asesor se comunicará contigo en ese horario. ¡Gracias!",
+            [("CMD_MAIN_MENU", "🏠 Menú Principal")],
+        )
+    else:
+        enviar_texto(
+            ctx.tel,
+            f"✅ ¡Listo, *{lead.nombre}*! Registramos tu solicitud (*#{lead.id}*).{dni_linea}\n\n"
+            "Un asesor de nuestro equipo se comunicará contigo muy pronto por llamada o por este mismo WhatsApp. ¡Gracias!",
+        )
+
+
 def iniciar(ctx):
     if not en_horario_atencion():
         estado.iniciar(ctx.tel, "asesor", "franja", {"fuera_horario": True})
@@ -160,10 +318,7 @@ def continuar(ctx, st):
 
         if tipo_cita == "Chat ahora":
             estado.avanzar(st, "datos", tipo_cita=tipo_cita, franja="")
-            enviar_texto(
-                ctx.tel,
-                "¡Genial! Escribe tu *nombre completo* y tu consulta breve para conectarte ahora mismo con un asesor.",
-            )
+            _pedir_identificacion(ctx, st, estado.datos(st), "¡Genial! Te conectaremos ahora mismo con un asesor.")
             return True
 
         estado.avanzar(st, "dia", tipo_cita=tipo_cita)
@@ -207,104 +362,72 @@ def continuar(ctx, st):
             enviar_texto(ctx.tel, "Indícanos en qué horario prefieres que te llamemos (ej. *Mañana 10am* o *Tarde 3pm*).")
             return True
         estado.avanzar(st, "datos", franja=franja, sede=d.get("sede") or "Cita programada")
-        enviar_texto(
+        _pedir_identificacion(ctx, st, estado.datos(st), f"¡Listo (*{franja}*)!")
+        return True
+
+    if paso == "confirmar_dni":
+        resp_txt = (ctx.txt or "").strip().lower()
+        if ctx.btn_id == "ase_dni_ok:si" or resp_txt in ("si", "sí", "confirmo", "ok"):
+            _finalizar_registro(
+                ctx, d,
+                nombre_lead=d.get("nombre_completo") or ctx.nombre,
+                detalle=d.get("detalle") or f"DNI verificado ({d.get('sede') or 'General'})",
+                dni=d.get("dni") or "",
+                nombres=d.get("nombres") or "",
+                paternal=d.get("paternal") or "",
+                maternal=d.get("maternal") or "",
+            )
+            return True
+        if ctx.btn_id == "ase_dni_ok:no" or resp_txt in ("no", "cambiar", "corregir"):
+            estado.avanzar(st, "datos", dni="", nombre_completo="")
+            enviar_texto(ctx.tel, "Entendido. Escribe nuevamente tu número de *DNI* (8 dígitos) o tu *nombre completo*:")
+            return True
+        enviar_botones(
             ctx.tel,
-            f"¡Listo (*{franja}*)! Por último, escribe tu *nombre completo* (y si deseas, el nivel/carrera o motivo de tu consulta) para confirmar tu cita.",
+            f"Por favor confirma si tus datos son correctos:\n*{d.get('nombre_completo', '')}*",
+            [("ase_dni_ok:si", "✅ Sí, soy yo"), ("ase_dni_ok:no", "✏️ Corregir DNI")],
         )
         return True
 
     if paso == "datos":
         if ctx.tipo != "text" or not ctx.txt.strip():
-            enviar_texto(ctx.tel, "Por favor escribe tu nombre y un breve detalle para pasarte con el asesor (o escribe *cancelar*).")
+            enviar_texto(ctx.tel, "Por favor escribe tu *DNI* (8 dígitos) o tu *nombre completo* (o escribe *cancelar*).")
             return True
-        detalle = ctx.txt.strip()[:400]
-        nombre_lead = detalle.splitlines()[0][:120]
-        sede = d.get("sede") or "General"
-        tipo_cita = d.get("tipo_cita") or "Llamada"
-        dia = d.get("dia") or "Próximo día hábil"
-        franja = d.get("franja") or ""
-        franja_completa = f"{dia} · {franja}".strip(" ·") if franja else ""
-        fuera_horario = bool(d.get("fuera_horario"))
+        entrada = ctx.txt.strip()[:400]
 
-        lead = Lead.query.filter_by(telefono=ctx.tel).filter(
-            Lead.estado.in_(("nuevo", "contactado", "visita"))
-        ).first() or Lead(telefono=ctx.tel)
-        lead.nombre = nombre_lead if len(nombre_lead) <= 60 else (ctx.nombre or nombre_lead[:60])
-        lead.sede_nombre = sede[:120]
-        lead.comentario = detalle
-        if franja_completa:
-            lead.visita_pref = franja_completa[:120]
-        lead.resumen_ia = (
-            f"{tipo_cita} agendada ({franja_completa}) · {sede}: {detalle}"
-            if franja_completa else f"Solicitó asesor en vivo · {sede}: {detalle}"
-        )
-        lead.quiere_asesor = True
-        lead.prioridad = "alta"
-        lead.score = "caliente"
-        lead.empresa_id = lead.empresa_id or ctx.usu.empresa_id
-        if not lead.asignado_a:
-            auto_asesor = asignar_asesor_round_robin(lead.empresa_id)
-            if auto_asesor:
-                lead.asignado_a = auto_asesor
-        lead.resultado_llamada = "cita_agendada" if franja_completa else "pendiente"
-        lead.estado = "visita" if franja_completa else (lead.estado or "nuevo")
-        db.session.add(lead)
-        db.session.commit()
-        if lead.asignado_a:
-            ctx.usu.asignado_a = lead.asignado_a
-            db.session.add(LeadEvento(lead_id=lead.id, tipo='asignacion', detalle=f'Auto-asignado (Round-Robin) a {lead.asignado_a}', usuario='sistema'))
-            db.session.commit()
-
-        cita_creada = None
-        if franja_completa:
-            cita_creada = Cita(
-                lead_id=lead.id,
-                empresa_id=lead.empresa_id,
-                telefono=ctx.tel,
-                nombre=lead.nombre or ctx.nombre or "",
-                fecha_preferida=dia[:60],
-                franja=franja[:80],
-                motivo=f"[{tipo_cita} · {sede}] {detalle}"[:500],
-                asignado_a=lead.asignado_a,
-                estado="pendiente",
-            )
-            db.session.add(cita_creada)
-            db.session.commit()
-            ep_cita = ep_cli.obtener_endpoint("agendar_cita", solo_activo=True)
-            if ep_cita:
-                ep_cli.ejecutar(ep_cita, {
-                    "lead_id": lead.id,
-                    "empresa_id": lead.empresa_id or 0,
-                    "franja": franja_completa,
-                    "motivo": detalle[:300],
-                })
-
-        lead.asesor_avisado = notificar_callcenter(lead)
-        if not fuera_horario and not franja_completa:
-            ctx.usu.bot_pausado = True
-            ctx.usu.estado_chat = "en_cola"
-            ctx.usu.esperando_asesor_desde = utcnow()
-        db.session.commit()
-        estado.terminar(ctx.tel)
-
-        if franja_completa:
-            cod = f"#C-{cita_creada.id:04d}" if cita_creada else f"#{lead.id}"
-            enviar_botones(
-                ctx.tel,
-                f"📅 *¡Cita confirmada ({cod})!*\n\n"
-                f"🏫 *Institución:* {sede}\n"
-                f"📌 *Modalidad:* {tipo_cita}\n"
-                f"🕒 *Horario:* {franja_completa}\n"
-                f"👤 *Contacto:* {lead.nombre}\n\n"
-                "Agendamos tu llamada/cita y un asesor se comunicará contigo en ese horario. ¡Gracias!",
-                [("CMD_MAIN_MENU", "🏠 Menú Principal")],
-            )
-        else:
+        # Si el usuario ingresó un DNI de 8 dígitos -> validar contra API externa (/admin/endpoints)
+        if entrada.isdigit() and len(entrada) == 8:
+            info = consultar_dni_externo(entrada)
+            if info.get("ok"):
+                estado.avanzar(
+                    st, "confirmar_dni",
+                    dni=info["dni"],
+                    nombres=info["nombres"],
+                    paternal=info["paternal"],
+                    maternal=info["maternal"],
+                    nombre_completo=info["nombre_completo"],
+                )
+                enviar_botones(
+                    ctx.tel,
+                    f"👤 Encontré tus datos:\n"
+                    f"*{info['nombre_completo']}*\n"
+                    f"🪪 DNI: *****{info['dni'][-4:]}*\n\n"
+                    "¿Confirmas que eres tú?",
+                    [("ase_dni_ok:si", "✅ Sí, soy yo"), ("ase_dni_ok:no", "✏️ Corregir DNI")],
+                    registro="[Confirmación de identidad por DNI enviada]",
+                )
+                return True
             enviar_texto(
                 ctx.tel,
-                f"✅ ¡Listo! Registramos tu solicitud (*#{lead.id}*).\n\n"
-                "Un asesor de nuestro equipo se comunicará contigo muy pronto por llamada o por este mismo WhatsApp. ¡Gracias!",
+                "😕 No pude validar ese *DNI* en este momento. Verifica los 8 dígitos o escribe tu *nombre completo* para continuar sin demoras.",
             )
+            return True
+
+        # Respaldo manual: el usuario escribió su nombre completo (ej. CE o sin DNI)
+        nombre_lead = entrada.splitlines()[0][:120]
+        if len(nombre_lead) > 60:
+            nombre_lead = ctx.nombre or nombre_lead[:60]
+        _finalizar_registro(ctx, d, nombre_lead=nombre_lead, detalle=entrada)
         return True
 
     estado.terminar(ctx.tel)
