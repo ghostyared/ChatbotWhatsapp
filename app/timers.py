@@ -52,9 +52,15 @@ def _texto_plantilla(atajo, defecto):
 
 
 def ejecutar_ciclo_timers(ahora=None):
-    """Ejecuta una pasada de SLA de asesores + inactividad de usuarios + Drip 20h. Devuelve conteos."""
+    """Ejecuta una pasada de SLA de asesores + inactividad en 3 etapas (aviso -> cierre con Sí/No -> despedida) + Drip 20h."""
     ahora = ahora or utcnow()
-    stats = {"sla_retomados": 0, "avisos_inactividad": 0, "cierres_inactividad": 0, "drip_20h": 0}
+    stats = {
+        "sla_retomados": 0,
+        "avisos_inactividad": 0,
+        "cierres_inactividad": 0,
+        "despedidas_finales": 0,
+        "drip_20h": 0,
+    }
 
     # 1. SLA de asesor: chats en cola que superaron HANDOFF_SLA_SECONDS sin respuesta humana
     limite_sla = ahora - timedelta(seconds=Config.HANDOFF_SLA_SECONDS)
@@ -101,7 +107,7 @@ def ejecutar_ciclo_timers(ahora=None):
         db.session.commit()
         stats["avisos_inactividad"] += 1
 
-    # 3. Cierre formal por inactividad (+USER_INACTIVITY_CLOSE_MIN después del aviso)
+    # 3. Cierre formal por inactividad (+USER_INACTIVITY_CLOSE_MIN) + encuesta "¿Logramos resolver tu consulta? [Sí / No]"
     limite_cierre = ahora - timedelta(minutes=Config.USER_INACTIVITY_CLOSE_MIN)
     para_cerrar = Usuario.query.filter(
         Usuario.bot_pausado.is_(True),
@@ -114,18 +120,39 @@ def ejecutar_ciclo_timers(ahora=None):
     for usu in para_cerrar:
         emp = db.session.get(Empresa, usu.empresa_id) if usu.empresa_id else None
         msg = interpolar_plantilla(tpl_cierre, usuario_nombre=usu.nombre_wa, empresa=emp)
-        enviar_texto(usu.telefono, msg)
-        msg_final = interpolar_plantilla(DEFAULT_DESPEDIDA_FINAL, usuario_nombre=usu.nombre_wa, empresa=emp)
-        enviar_texto(usu.telefono, msg_final)
+        enviar_botones(
+            usu.telefono,
+            f"{msg}\n\n*¿Logramos resolver tu consulta?*",
+            [("resuelto:si", "✅ Sí"), ("resuelto:no", "❌ No")],
+        )
+        # Reactiva el bot y deja armada la etapa 3 (despedida final si no pulsa Sí/No en USER_INACTIVITY_FINAL_MIN)
         usu.bot_pausado = False
         usu.estado_chat = 'bot'
-        usu.esperando_usuario_desde = None
-        usu.aviso_inactividad_enviado = False
+        usu.esperando_usuario_desde = ahora
+        usu.aviso_inactividad_enviado = True
         lead = Lead.query.filter_by(telefono=usu.telefono).order_by(Lead.id.desc()).first()
         if lead and not lead.resuelto_en:
             lead.resuelto_en = ahora
         db.session.commit()
         stats["cierres_inactividad"] += 1
+
+    # 3b. Despedida final si no respondió a la encuesta Sí/No tras USER_INACTIVITY_FINAL_MIN (ej. 1 min)
+    limite_final = ahora - timedelta(minutes=Config.USER_INACTIVITY_FINAL_MIN)
+    para_despedir = Usuario.query.filter(
+        Usuario.bot_pausado.is_(False),
+        Usuario.estado_chat == 'bot',
+        Usuario.aviso_inactividad_enviado.is_(True),
+        Usuario.esperando_usuario_desde.isnot(None),
+        Usuario.esperando_usuario_desde <= limite_final,
+    ).all()
+    for usu in para_despedir:
+        emp = db.session.get(Empresa, usu.empresa_id) if usu.empresa_id else None
+        msg_final = interpolar_plantilla(DEFAULT_DESPEDIDA_FINAL, usuario_nombre=usu.nombre_wa, empresa=emp)
+        enviar_texto(usu.telefono, msg_final)
+        usu.esperando_usuario_desde = None
+        usu.aviso_inactividad_enviado = False
+        db.session.commit()
+        stats["despedidas_finales"] += 1
 
     # 4. Seguimiento automático Drip 20h (dentro de la ventana gratuita de 24h de Meta)
     if Config.DRIP_20H_ENABLED:

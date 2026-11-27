@@ -262,6 +262,33 @@ def brain_gethi(tel, txt, btn_id, nombre_wa, tipo='text', media=None, referral=N
         )
         return
 
+    # Encuesta de cierre "¿Logramos resolver tu consulta?" (Sí / No)
+    if btn_id in ("resuelto:si", "resuelto:no"):
+        emp = db.session.get(Empresa, usu.empresa_id) if usu.empresa_id else None
+        nom_emp = emp.nombre_comercial if emp else Config.COMPANY_NAME
+        lead = Lead.query.filter_by(telefono=tel).order_by(Lead.id.desc()).first()
+        if btn_id == "resuelto:si":
+            if lead:
+                lead.csat = 5
+                db.session.add(LeadEvento(lead_id=lead.id, tipo='csat', detalle='Encuesta cierre: SÍ resuelto', usuario='cliente'))
+                db.session.commit()
+            enviar_botones(
+                tel,
+                "Nos alegra mucho tener una respuesta positiva de tu parte 😁🙌🏻\n\n"
+                f"Recuerda que por aquí te puedo ayudar con todas tus consultas de *{nom_emp}* 😎",
+                [("CMD_MAIN_MENU", "🏠 Menú Principal")],
+            )
+            return
+        # btn_id == "resuelto:no" -> registra y ofrece/lanza contacto inmediato con asesor
+        if lead:
+            lead.csat = 2
+            db.session.add(LeadEvento(lead_id=lead.id, tipo='csat', detalle='Encuesta cierre: NO resuelto — solicita asesor', usuario='cliente'))
+            db.session.commit()
+        ctx_no = Contexto(tel=tel, usu=usu, nombre=nombre_wa, txt=txt or "", btn_id=btn_id, tipo=tipo, media=media)
+        enviar_texto(tel, "Lamentamos no haber resuelto tu consulta aún 🙏 Te comunicamos con un asesor para ayudarte de inmediato.")
+        ACCIONES['acc_asesor'](ctx_no)
+        return
+
     # Encuesta de satisfacción CSAT (1-5)
     if btn_id.startswith("csat:"):
         val_raw = btn_id.split(":", 1)[1].strip()
